@@ -1,0 +1,2852 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Proyecto Final PT4 — Reconocimiento Molecular</title>
+  <link rel="icon" href="favicon.ico"/>
+  <script src="https://3Dmol.csb.pitt.edu/build/3Dmol-min.js"></script>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       QUÍMICA EN EL NAVEGADOR
+       Sustituye al backend Flask. RDKit compilado a WebAssembly hace
+       el trabajo que hacía RDKit en Python, y pinchdraw-quimica.js
+       ejecuta la GNN y atiende las rutas /api/* sin salir del navegador.
+       ══════════════════════════════════════════════════════════════ -->
+  <!-- RDKit va servido desde el propio sitio (vendor/) y no desde un CDN:
+       así la app no depende de que unpkg esté disponible, y el .wasm queda
+       cacheado en el navegador tras la primera visita. -->
+  <script src="RDKit_minimal.js"></script>
+  <script src="pinchdraw-quimica.js"></script>
+  <script>
+    // Si el módulo de química no llegó a cargarse, se avisa en pantalla en
+    // vez de dejar que la página reviente con un error críptico.
+    if (typeof PinchDrawQuimica === 'undefined') {
+      window.addEventListener('DOMContentLoaded', function () {
+        var t = document.getElementById('carga-texto');
+        if (t) {
+          t.textContent = 'No se pudo cargar js/pinchdraw-quimica.js';
+          t.style.color = '#ef233c';
+        }
+      });
+      throw new Error('PinchDrawQuimica no está disponible');
+    }
+
+    // El interceptor se instala de inmediato: cualquier llamada a /api/*
+    // que el frontend haga durante el arranque quedará en espera hasta
+    // que RDKit y los modelos estén cargados, en vez de fallar.
+    PinchDrawQuimica.instalarInterceptor();
+
+    window.addEventListener('DOMContentLoaded', function () {
+      var caja  = document.getElementById('carga-quimica');
+      var texto = document.getElementById('carga-texto');
+      var barra = document.getElementById('carga-barra');
+
+      PinchDrawQuimica.iniciar({
+        rutaModelos: '',
+        progreso: function (mensaje, fraccion) {
+          if (texto) texto.textContent = mensaje;
+          if (barra) barra.style.width = Math.round(fraccion * 100) + '%';
+        }
+      }).then(function () {
+        if (caja) {
+          caja.style.opacity = '0';
+          setTimeout(function () { caja.style.display = 'none'; }, 400);
+        }
+        var off = document.getElementById('gnn-servidor-off');
+        if (off) off.style.display = 'none';
+      }).catch(function (e) {
+        if (texto) {
+          texto.textContent = 'No se pudo cargar la química: ' + e.message;
+          texto.style.color = '#ef233c';
+        }
+        console.error(e);
+      });
+    });
+  </script>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{background:#000;overflow:hidden;}
+    canvas{display:block;position:fixed;top:0;left:0;}
+    #ui{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:16px 20px;pointer-events:none;z-index:20;}
+    #branding{display:flex;flex-direction:column;gap:4px;}
+    #title{font-family:'Courier New',monospace;font-size:18px;font-weight:bold;letter-spacing:4px;color:#fff;}
+    #subtitle{font-family:'Courier New',monospace;font-size:10px;color:#555;letter-spacing:2px;}
+    #status-cluster{display:flex;flex-direction:column;align-items:flex-end;gap:6px;pointer-events:none;}
+    #state-badge{font-family:'Courier New',monospace;font-size:12px;padding:5px 16px;border-radius:20px;border:1px solid #333;background:rgba(0,0,0,0.6);color:#666;letter-spacing:2px;transition:all 0.2s;}
+    #state-badge.pinching{color:#fff;border-color:#fff;}
+    #state-badge.open{color:#aaa;border-color:#444;}
+    #state-badge.corrected{color:#aaffaa;border-color:#aaffaa;}
+    #state-badge.analyzing{color:#ffcc44;border-color:#ffcc44;}
+    /* ── Feedback visual en vivo: usa detectar() sobre el trazo activo o el último trazo ── */
+    #live-detection{font-family:'Courier New',monospace;font-size:10px;max-width:330px;padding:5px 12px;border-radius:16px;border:1px solid #242a35;background:rgba(0,0,0,0.58);color:#6c7480;letter-spacing:1px;text-align:right;transition:all 0.18s;}
+    #live-detection.ok{color:#06d6a0;border-color:#064a3a;background:rgba(6,214,160,0.07);}
+    #live-detection.warn{color:#ffbe0b;border-color:#554400;background:rgba(255,190,11,0.07);}
+    #live-detection.wait{color:#6c7480;border-color:#30343c;}
+    #correction-panel{position:fixed;top:64px;right:20px;z-index:20;display:flex;flex-direction:column;gap:4px;align-items:flex-end;}
+    #correction-panel label{font-family:'Courier New',monospace;font-size:9px;color:#444;letter-spacing:2px;}
+    #eps-row{display:flex;align-items:center;gap:6px;}
+    #eps-slider{width:100px;accent-color:#888;cursor:pointer;}
+    #eps-value{font-family:'Courier New',monospace;font-size:10px;color:#666;width:32px;text-align:right;}
+    #hint{position:fixed;bottom:68px;left:50%;transform:translateX(-50%);font-family:'Courier New',monospace;font-size:10px;color:#e60707;letter-spacing:1px;white-space:nowrap;pointer-events:none;z-index:20;text-align:center;line-height:1.6;}
+    #buttons{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);display:flex;gap:10px;z-index:20;flex-wrap:wrap;justify-content:center;max-width:calc(100vw - 230px);}
+    .btn{font-family:'Courier New',monospace;font-size:11px;letter-spacing:2px;padding:7px 18px;background:rgba(0,0,0,0.8);border-radius:6px;cursor:pointer;transition:all 0.2s;color:#666;border:1px solid #333;}
+    .btn:hover{border-color:#bbb;color:#fff;}
+    #btn-analizar{border-color:#4a9eff;color:#4a9eff;font-size:12px;padding:7px 22px;}
+    #btn-analizar:hover{background:rgba(74,158,255,0.15);border-color:#7bbfff;color:#7bbfff;}
+    #btn-analizar:disabled{opacity:0.3;cursor:not-allowed;}
+    #btn-catalogo{border-color:#9d4edd;color:#c77dff;}
+    #btn-catalogo:hover{background:rgba(157,78,221,0.15);border-color:#c77dff;color:#fff;}
+    #btn-cache{border-color:#2a9d8f;color:#7ee4d2;}
+    #btn-cache:hover{background:rgba(42,157,143,0.15);border-color:#7ee4d2;color:#fff;}
+    #btn-drawing-mode{border-color:#457b9d;color:#8ecae6;}
+    #btn-drawing-mode:hover{background:rgba(69,123,157,0.15);border-color:#8ecae6;color:#fff;}
+    #drawing-mode-label{font-family:'Courier New',monospace;font-size:9px;color:#8ecae6;letter-spacing:1px;align-self:center;white-space:nowrap;}
+    #btn-borrar-punto{border-color:#e76f51;color:#f4a261;}
+    #btn-borrar-punto:hover{background:rgba(231,111,81,0.15);border-color:#f4a261;color:#fff;}
+    /* ── Exportación del dibujo: descarga solo la capa de trazos, sin UI ni cámara ── */
+    #btn-export{border-color:#457b9d;color:#8ecae6;}
+    #btn-export:hover{background:rgba(69,123,157,0.15);border-color:#8ecae6;color:#fff;}
+
+    /* ── Botón y panel de historial persistente ───────────────────────── */
+    #btn-historial{position:fixed;bottom:18px;right:122px;z-index:25;font-family:'Courier New',monospace;font-size:10px;letter-spacing:2px;padding:7px 15px;background:rgba(0,0,0,0.88);border-radius:6px;cursor:pointer;border:1px solid #315070;color:#8ecae6;transition:all 0.2s;}
+    #btn-historial:hover{border-color:#8ecae6;color:#d8f3ff;box-shadow:0 0 10px rgba(142,202,230,0.25);}
+    #historial-panel{position:fixed;right:0;top:0;bottom:0;width:315px;background:#07090e;border-left:1px solid #183044;z-index:156;display:flex;flex-direction:column;transform:translateX(100%);transition:transform 0.3s ease;box-shadow:-12px 0 40px rgba(0,0,0,0.85);}
+    #historial-panel.open{transform:translateX(0);}
+    #historial-hdr{padding:14px 16px 10px;border-bottom:1px solid #183044;flex-shrink:0;background:#0b0f16;}
+    #historial-hdr-row{display:flex;justify-content:space-between;align-items:center;}
+    #historial-titulo{font-family:'Courier New',monospace;font-size:14px;font-weight:bold;color:#fff;letter-spacing:2px;}
+    #historial-sub{font-family:'Courier New',monospace;font-size:9px;color:#608ca8;letter-spacing:1px;margin-top:3px;line-height:1.5;}
+    #historial-x{background:none;border:none;color:#555;font-size:18px;cursor:pointer;line-height:1;padding:0;}
+    #historial-x:hover{color:#fff;}
+    #historial-list{flex:1;overflow-y:auto;padding:10px 8px;}
+    #historial-list::-webkit-scrollbar{width:3px;}
+    #historial-list::-webkit-scrollbar-thumb{background:#1e2a30;border-radius:2px;}
+    .historial-item{width:100%;background:#0c1018;border:1px solid #1a2530;border-radius:10px;padding:10px;margin-bottom:8px;text-align:left;cursor:pointer;transition:all 0.15s;font-family:'Courier New',monospace;}
+    .historial-item:hover{border-color:#8ecae6;background:rgba(69,123,157,0.09);}
+    .historial-top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start;margin-bottom:5px;}
+    .historial-nombre{font-size:12px;color:#fff;font-weight:bold;letter-spacing:1px;}
+    .historial-formula{font-size:10px;color:#06d6a0;white-space:nowrap;}
+    .historial-smiles{font-size:8px;color:#7bbfff;word-break:break-all;line-height:1.4;margin-bottom:4px;}
+    .historial-fecha{font-size:8px;color:#566;letter-spacing:1px;}
+    #historial-empty{font-family:'Courier New',monospace;font-size:10px;color:#46515c;line-height:1.7;padding:14px;text-align:center;border:1px dashed #1a2530;border-radius:10px;background:#0a0d12;}
+    #historial-actions{display:flex;gap:8px;padding:10px 12px;border-top:1px solid #183044;background:#0b0f16;}
+    .historial-action{flex:1;font-family:'Courier New',monospace;font-size:9px;letter-spacing:1px;padding:7px;border-radius:6px;background:#0d1219;border:1px solid #1e2530;color:#668;cursor:pointer;}
+    .historial-action:hover{border-color:#8ecae6;color:#d8f3ff;}
+
+    /* ── Recuadro de cámara: preview visible sin bloquear la interacción ── */
+    #camera-preview{position:fixed;left:20px;bottom:86px;width:160px;height:120px;border:1px solid rgba(255,255,255,0.16);border-radius:10px;background:#05070b;overflow:hidden;z-index:18;pointer-events:none;box-shadow:0 0 24px rgba(0,0,0,0.65);}
+    #camera-preview video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);opacity:0.82;}
+    #camera-preview.offline video{opacity:0.18;}
+    #camera-preview-label{position:absolute;left:7px;top:6px;font-family:'Courier New',monospace;font-size:9px;letter-spacing:1px;color:#cbd5e1;background:rgba(0,0,0,0.62);border:1px solid rgba(255,255,255,0.10);border-radius:6px;padding:3px 6px;}
+    /* ── BOTÓN GUÍA ───────────────────────────────────── */
+    #btn-guia{position:fixed;bottom:18px;right:20px;z-index:25;font-family:'Courier New',monospace;font-size:10px;letter-spacing:2px;padding:7px 15px;background:rgba(0,0,0,0.88);border-radius:6px;cursor:pointer;border:1px solid #3a5a2a;color:#7aba4a;transition:all 0.2s;}
+    #btn-guia:hover{border-color:#afd870;color:#cff0a0;box-shadow:0 0 10px rgba(175,216,112,0.25);}
+
+    /* ── PANEL GUÍA LATERAL ───────────────────────────── */
+    #guia-panel{position:fixed;right:0;top:0;bottom:0;width:min(390px,100vw);background:#07090e;border-left:1px solid #1a2530;z-index:150;display:flex;flex-direction:column;transform:translateX(100%);transition:transform 0.3s ease;box-shadow:-12px 0 40px rgba(0,0,0,0.85);}
+    #guia-panel.open{transform:translateX(0);}
+    #guia-hdr{padding:14px 16px 10px;border-bottom:1px solid #1a2530;flex-shrink:0;background:#0b0f16;}
+    #guia-hdr-row{display:flex;justify-content:space-between;align-items:center;}
+    #guia-titulo{font-family:'Courier New',monospace;font-size:14px;font-weight:bold;color:#fff;letter-spacing:2px;}
+    #guia-sub{font-family:'Courier New',monospace;font-size:9px;color:#4a7a2a;letter-spacing:1px;margin-top:3px;}
+    #guia-x{background:none;border:none;color:#555;font-size:18px;cursor:pointer;line-height:1;padding:0;}
+    #guia-x:hover{color:#fff;}
+    .g-tabs{display:flex;border-bottom:1px solid #1a2530;flex-shrink:0;}
+    .g-tab{flex:1;font-family:'Courier New',monospace;font-size:9px;padding:10px 4px;background:none;border:none;color:#555;cursor:pointer;transition:all 0.2s;letter-spacing:1px;border-bottom:2px solid transparent;}
+    .g-tab.active{color:#afd870;border-bottom-color:#afd870;}
+    .g-tab:hover:not(.active){color:#888;}
+    .g-body{flex:1;overflow-y:auto;padding:10px 8px;}
+    .g-body::-webkit-scrollbar{width:3px;}
+    .g-body::-webkit-scrollbar-thumb{background:#1e2a30;border-radius:2px;}
+    .gm-tools{position:sticky;top:-10px;z-index:3;background:#07090e;padding:2px 0 9px;margin-bottom:2px;}
+    #guia-search{width:100%;box-sizing:border-box;background:#0b1017;border:1px solid #26323e;border-radius:6px;color:#e8edf2;font-family:'Courier New',monospace;font-size:11px;padding:9px 10px;outline:none;}
+    #guia-search:focus{border-color:#7aba4a;box-shadow:0 0 0 2px rgba(122,186,74,0.12);}
+    #guia-count{font-family:'Courier New',monospace;font-size:8px;color:#64707c;margin-top:6px;line-height:1.4;}
+    #guia-list{min-height:80px;}
+    .gm-empty{font-family:'Courier New',monospace;font-size:10px;color:#6c7480;line-height:1.6;padding:18px 10px;text-align:center;border:1px dashed #26323e;border-radius:6px;}
+    .gm-source{display:inline-block;margin-left:6px;color:#06d6a0;font-size:8px;font-weight:normal;}
+    .gm-meta{margin-top:4px;color:#78828d;font-size:8px;line-height:1.45;word-break:break-word;}
+
+    /* ── TARJETA DE MOLÉCULA (guía) ───────────────────── */
+    .gm-card{background:#0c1018;border:1px solid #1a2530;border-radius:10px;padding:10px;margin-bottom:8px;transition:border-color 0.2s;cursor:pointer;content-visibility:auto;contain-intrinsic-size:auto 210px;}
+    .gm-card:hover{border-color:#6a9a30;}
+    .gm-card.selected{border-color:#afd870;box-shadow:0 0 12px rgba(175,216,112,0.12);}
+    /* ── Mini-canvas educativo: muestra cómo trazar la molécula seleccionada ── */
+    #guia-demo-panel{background:#080c12;border:1px solid #1a2530;border-radius:12px;padding:9px;margin-bottom:10px;}
+    #guia-demo-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;font-family:'Courier New',monospace;}
+    #guia-demo-title{font-size:10px;color:#afd870;letter-spacing:1px;}
+    #guia-demo-formula{font-size:10px;color:#06d6a0;}
+    #guia-demo-canvas{width:100%;height:105px;border-radius:9px;background:#05070b;border:1px solid #121a22;display:block;}
+    #guia-demo-help{font-family:'Courier New',monospace;font-size:8px;color:#556;line-height:1.5;margin-top:6px;}
+    .gm-top{display:flex;align-items:center;gap:10px;margin-bottom:7px;}
+    .gm-ico{width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+    .gm-name{font-family:'Courier New',monospace;font-size:13px;font-weight:bold;color:#fff;}
+    .gm-form{font-family:'Courier New',monospace;font-size:10px;color:#888;margin-top:2px;}
+    .gm-draw{font-family:'Courier New',monospace;font-size:10px;color:#afd870;padding:5px 8px;background:rgba(175,216,112,0.07);border-radius:6px;border-left:2px solid #6a9a30;margin-bottom:5px;line-height:1.5;}
+    .gm-tip{font-family:'Courier New',monospace;font-size:9px;color:#c28a31;padding:4px 8px;background:rgba(194,138,49,0.07);border-radius:5px;border-left:2px solid #6a4a10;margin-bottom:5px;line-height:1.5;}
+    .gm-fact{font-family:'Courier New',monospace;font-size:9px;color:#556;line-height:1.55;}
+    .gm-uso{font-family:'Courier New',monospace;font-size:9px;color:#7fa8c9;line-height:1.55;margin-top:5px;padding:4px 8px;background:rgba(74,158,255,0.06);border-radius:5px;border-left:2px solid #2d5a7a;}
+    .gm-uso b{color:#9dc4e0;}
+
+    /* ── TARJETA DE REACCIÓN (guía) ───────────────────── */
+    .gr-card{background:#0c1018;border:1px solid #1a2530;border-radius:10px;padding:10px;margin-bottom:8px;}
+    .gr-hdr{display:flex;align-items:center;gap:8px;margin-bottom:5px;}
+    .gr-emoji{font-size:18px;}
+    .gr-name{font-family:'Courier New',monospace;font-size:11px;font-weight:bold;color:#fff;letter-spacing:1px;}
+    .gr-eq{font-family:'Courier New',monospace;font-size:10px;color:#7bbfff;line-height:1.7;margin-bottom:4px;}
+    .gr-ej{font-family:'Courier New',monospace;font-size:8px;color:#445;line-height:1.5;margin-bottom:4px;word-break:break-all;}
+    .gr-fact{font-family:'Courier New',monospace;font-size:9px;color:#6a7a5a;line-height:1.55;}
+
+    #catalogo-modal{position:fixed;inset:0;background:rgba(0,0,6,0.92);backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:center;z-index:190;transition:opacity 0.25s;}
+    #catalogo-modal.hidden{opacity:0;pointer-events:none;}
+    #catalogo-card{background:#0b0e14;border:1px solid #2b1f3a;border-radius:16px;padding:20px 24px;max-width:760px;width:94%;max-height:88vh;overflow-y:auto;position:relative;font-family:'Courier New',monospace;color:#ccc;box-shadow:0 0 80px rgba(0,0,0,0.9);}
+    #catalogo-close{position:absolute;top:14px;right:16px;background:none;border:none;color:#555;font-size:18px;cursor:pointer;line-height:1;}
+    #catalogo-close:hover{color:#fff;}
+    #catalogo-titulo{font-size:18px;font-weight:bold;color:#c77dff;letter-spacing:2px;margin-bottom:4px;}
+    #catalogo-subtitulo{font-size:9px;color:#555;letter-spacing:1px;margin-bottom:14px;line-height:1.5;}
+    #catalogo-controls{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+    #catalogo-search{flex:1;min-width:0;background:#090c11;border:1px solid #2b3340;border-radius:6px;color:#eee;padding:8px 10px;font-family:'Courier New',monospace;font-size:10px;outline:none;}
+    #catalogo-search:focus{border-color:#c77dff;}
+    #catalogo-count{font-size:9px;color:#8ecae6;white-space:nowrap;}
+    #catalogo-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;}
+    /* content-visibility: el navegador se salta el render de las tarjetas que
+       están fuera de la vista. Con cientos de fichas evita el tirón al abrir
+       el catálogo y al hacer scroll. contain-intrinsic-size reserva el alto
+       aproximado para que la barra de scroll no salte. */
+    .catalogo-item{background:#0d1219;border:1px solid #1e2530;border-radius:8px;padding:10px;cursor:pointer;transition:all 0.15s;text-align:left;content-visibility:auto;contain-intrinsic-size:auto 190px;}
+    .catalogo-item:hover{border-color:#c77dff;background:rgba(157,78,221,0.08);}
+    .catalogo-item-head{display:flex;align-items:center;gap:8px;margin-bottom:5px;}
+    .catalogo-icon{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
+    .catalogo-nombre{font-size:11px;color:#eee;letter-spacing:1px;}
+    .catalogo-formula{font-size:10px;color:#06d6a0;margin-top:2px;}
+    .catalogo-tipo{font-size:8px;color:#555;letter-spacing:1px;text-transform:uppercase;}
+    .catalogo-smiles{font-size:8px;color:#7bbfff;word-break:break-all;margin-top:5px;}
+    .catalogo-trazo{font-size:8px;color:#aab4c3;line-height:1.45;margin-top:7px;padding-top:6px;border-top:1px solid #1e2530;}
+    .catalogo-uso{font-size:8px;color:#8fb98f;line-height:1.5;margin-top:6px;padding-top:6px;border-top:1px solid #1e2530;}
+    .catalogo-uso b{color:#a8d5a8;}
+    .catalogo-nombre-en{font-size:8px;color:#5a6472;letter-spacing:0.5px;margin-top:1px;}
+    .catalogo-elemento{border-color:#2d4356;}
+    .catalogo-badge-el{display:inline-block;font-size:7px;letter-spacing:1px;color:#4a9eff;border:1px solid #2d4356;border-radius:3px;padding:1px 4px;margin-left:5px;vertical-align:middle;}
+
+  
+    #mol-modal{position:fixed;inset:0;background:rgba(0,0,6,0.92);backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:center;z-index:200;transition:opacity 0.25s;}
+    #mol-modal.hidden{opacity:0;pointer-events:none;}
+    #mol-card{background:#0b0e14;border:1px solid #1e2530;border-radius:16px;padding:20px 24px;max-width:560px;width:94%;max-height:92vh;overflow-y:auto;position:relative;font-family:'Courier New',monospace;color:#ccc;box-shadow:0 0 80px rgba(0,0,0,0.9);}
+    #mol-close{position:absolute;top:14px;right:16px;background:none;border:none;color:#555;font-size:18px;cursor:pointer;transition:color 0.2s;line-height:1;}
+    #mol-close:hover{color:#fff;}
+    #mol-header{display:flex;align-items:center;gap:14px;margin-bottom:16px;}
+    #mol-icon{width:52px;height:52px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;}
+    #mol-nombre{font-size:20px;font-weight:bold;color:#fff;letter-spacing:2px;}
+    #mol-formula-display{font-size:14px;color:#aaa;margin-top:2px;letter-spacing:1px;}
+    #mol-tipo-display{font-size:9px;color:#555;margin-top:3px;letter-spacing:2px;text-transform:uppercase;}
+    #mol-body{display:flex;gap:16px;margin-bottom:14px;align-items:flex-start;}
+    #mol-img-box{flex-shrink:0;width:130px;height:130px;background:#111520;border-radius:10px;border:1px solid #1e2530;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+    #mol-img-box img{width:120px;height:120px;object-fit:contain;filter:invert(1);}
+    #mol-img-fallback{font-size:10px;color:#444;text-align:center;padding:8px;display:none;}
+    #mol-props{flex:1;display:flex;flex-direction:column;gap:6px;}
+    .mol-prop{display:flex;flex-direction:column;gap:2px;background:#0d1219;border-radius:6px;padding:7px 10px;border:1px solid #1a2030;}
+    .mol-prop-label{font-size:8px;color:#444;letter-spacing:2px;text-transform:uppercase;}
+    .mol-prop-val{font-size:11px;color:#aaa;word-break:break-all;}
+    .mol-prop-val.smiles{color:#7bbfff;font-size:10px;}
+    #mol-desc{font-size:10px;color:#666;line-height:1.6;border-left:2px solid #1e2530;padding-left:10px;margin-bottom:14px;}
+
+    #mol-3d-section{margin-bottom:14px;border:1px solid #1e2530;border-radius:10px;overflow:hidden;}
+    #mol-3d-header{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:#0d1219;border-bottom:1px solid #1a2030;}
+    #mol-3d-label{font-size:9px;color:#555;letter-spacing:2px;}
+    #mol-3d-btns{display:flex;gap:5px;}
+    .d3btn{font-family:'Courier New',monospace;font-size:9px;padding:3px 9px;border-radius:4px;border:1px solid #222;background:rgba(0,0,0,0.5);color:#555;cursor:pointer;transition:all 0.15s;letter-spacing:1px;}
+    .d3btn:hover{border-color:#4a9eff;color:#4a9eff;}
+    .d3btn.active{border-color:#06d6a0;color:#06d6a0;}
+    #mol-3d-viewer{width:100%;height:240px;background:#080810;position:relative;}
+    #mol-3d-status{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:10px;color:#444;letter-spacing:1px;pointer-events:none;}
+
+    #confianza-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+    #confianza-label{font-size:9px;color:#444;letter-spacing:2px;white-space:nowrap;}
+    #confianza-track{flex:1;height:4px;background:#111520;border-radius:3px;overflow:hidden;}
+    #confianza-bar{height:100%;border-radius:3px;transition:width 0.5s;}
+    #confianza-pct{font-size:10px;color:#888;width:34px;text-align:right;}
+    #mol-alts-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+    #mol-alts-label{font-size:9px;color:#444;letter-spacing:1px;white-space:nowrap;}
+    .alt-btn{font-size:9px;padding:3px 9px;border-radius:20px;border:1px solid #1e2530;background:#0d1219;color:#666;cursor:pointer;transition:all 0.15s;font-family:'Courier New',monospace;}
+    .alt-btn:hover{border-color:#4a9eff;color:#4a9eff;}
+    #pubchem-link{display:block;font-size:9px;color:#333;letter-spacing:1px;text-align:right;margin-top:10px;text-decoration:none;transition:color 0.2s;}
+    #pubchem-link:hover{color:#4a9eff;}
+
+    /* ── SECCIÓN GNN ─────────────────────────────────── */
+    #gnn-section{margin:14px 0;border:1px solid #1a2a1a;border-radius:10px;overflow:hidden;}
+    #gnn-header{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:#0a130a;border-bottom:1px solid #1a2a1a;cursor:pointer;}
+    #gnn-header-label{font-size:9px;color:#4a9e4a;letter-spacing:2px;}
+    #gnn-badge{font-size:9px;padding:2px 8px;border-radius:10px;border:1px solid #2a4a2a;color:#4a7a4a;letter-spacing:1px;transition:all 0.3s;}
+    #gnn-badge.cargando{color:#ffbe0b;border-color:#554400;animation:gnn-pulse 1s infinite;}
+    #gnn-badge.ok{color:#06d6a0;border-color:#064a3a;}
+    #gnn-badge.error{color:#555;border-color:#333;}
+    @keyframes gnn-pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+    #gnn-body{padding:12px;display:flex;flex-direction:column;gap:10px;}
+    .gnn-prop{display:flex;flex-direction:column;gap:4px;}
+    .gnn-prop-header{display:flex;justify-content:space-between;align-items:baseline;}
+    .gnn-prop-label{font-size:8px;color:#4a7a4a;letter-spacing:2px;}
+    .gnn-prop-val{font-size:11px;color:#aaa;font-weight:bold;}
+    .gnn-prop-interp{font-size:9px;color:#555;letter-spacing:1px;}
+    .gnn-track{height:4px;background:#0d1a0d;border-radius:3px;overflow:hidden;margin-top:2px;}
+    .gnn-bar{height:100%;border-radius:3px;transition:width 0.7s ease;}
+    .gnn-divider{height:1px;background:#1a2a1a;}
+    .gnn-pred-row{display:flex;justify-content:space-between;align-items:center;}
+    .gnn-pred-tag{font-size:9px;padding:2px 8px;border-radius:8px;letter-spacing:1px;}
+    .gnn-pred-tag.ok{background:#063a1a;color:#06d6a0;border:1px solid #0a5a2a;}
+    .gnn-pred-tag.warn{background:#3a2a00;color:#ffbe0b;border:1px solid #5a4a00;}
+    .gnn-pred-tag.bad{background:#3a0a0a;color:#ef233c;border:1px solid #5a1010;}
+    #gnn-servidor-off{font-size:9px;color:#333;letter-spacing:1px;padding:8px;text-align:center;}
+
+    /* ── REACTIVOS PARA REACCIÓN (chips + botones en el modal) ── */
+    #reaccion-pick-row{display:flex;gap:8px;margin-top:10px;}
+    .reaccion-pick-btn{flex:1;font-family:'Courier New',monospace;font-size:9px;letter-spacing:1px;padding:7px 8px;border-radius:6px;cursor:pointer;background:#0d1219;border:1px solid #2a3a55;color:#7bbfff;transition:all 0.15s;text-align:center;}
+    .reaccion-pick-btn:hover{background:rgba(74,158,255,0.15);border-color:#4a9eff;color:#fff;}
+    .reaccion-pick-btn.activo{border-color:#06d6a0;color:#06d6a0;background:rgba(6,214,160,0.1);}
+
+    #reactivos-panel{position:fixed;top:64px;left:20px;z-index:20;display:flex;flex-direction:column;gap:6px;pointer-events:none;}
+    .reactivo-chip{font-family:'Courier New',monospace;font-size:9px;letter-spacing:1px;padding:5px 12px;border-radius:20px;border:1px solid #222;background:rgba(0,0,0,0.6);color:#444;white-space:nowrap;transition:all 0.2s;}
+    .reactivo-chip.lleno{color:#fff;border-color:#4a9eff;}
+
+    #btn-reaccion{border-color:#ff9f1c;color:#ff9f1c;}
+    #btn-reaccion:hover{background:rgba(255,159,28,0.15);border-color:#ffb84d;color:#ffb84d;}
+    #reacciones-visuales{margin:10px 0 16px;border:1px solid #241d12;border-radius:10px;padding:10px;background:#0a0d12;}
+    #reacciones-visuales-title{font-size:8px;color:#777;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;}
+    #reacciones-visuales-grid{display:flex;gap:8px;flex-wrap:wrap;}
+    .rx-visual-btn{font-family:'Courier New',monospace;font-size:9px;letter-spacing:1px;padding:5px 9px;border-radius:20px;border:1px solid #3a2a10;background:#0d1219;color:#c28a31;cursor:pointer;transition:all 0.15s;}
+    .rx-visual-btn:hover{border-color:#ff9f1c;color:#ffb84d;background:rgba(255,159,28,0.08);}
+
+    /* ── MODAL DE SIMULACIÓN DE REACCIÓN ─────────────────────── */
+    #reaccion-modal{position:fixed;inset:0;background:rgba(0,0,6,0.92);backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:center;z-index:210;transition:opacity 0.25s;}
+    #reaccion-modal.hidden{opacity:0;pointer-events:none;}
+    #reaccion-card{background:#0b0e14;border:1px solid #2a2010;border-radius:16px;padding:20px 24px;max-width:640px;width:94%;max-height:92vh;overflow-y:auto;position:relative;font-family:'Courier New',monospace;color:#ccc;box-shadow:0 0 80px rgba(0,0,0,0.9);}
+    #reaccion-close{position:absolute;top:14px;right:16px;background:none;border:none;color:#555;font-size:18px;cursor:pointer;line-height:1;}
+    #reaccion-close:hover{color:#fff;}
+    #reaccion-titulo{font-size:18px;font-weight:bold;color:#ff9f1c;letter-spacing:2px;margin-bottom:4px;}
+    #reaccion-subtitulo{font-size:9px;color:#555;letter-spacing:1px;margin-bottom:16px;}
+    .reaccion-input-row{display:flex;flex-direction:column;gap:4px;margin-bottom:12px;}
+    .reaccion-input-row label{font-size:8px;color:#666;letter-spacing:2px;text-transform:uppercase;}
+    .reaccion-input-row input[type=text]{background:#0d1219;border:1px solid #1e2530;border-radius:6px;padding:9px 10px;color:#7bbfff;font-family:'Courier New',monospace;font-size:12px;outline:none;}
+    .reaccion-input-row input[type=text]:focus{border-color:#4a9eff;}
+    #reaccion-tipo-row{display:flex;flex-direction:column;gap:4px;margin-bottom:16px;}
+    #reaccion-tipo-row label{font-size:8px;color:#666;letter-spacing:2px;text-transform:uppercase;}
+    #reaccion-tipo{background:#0d1219;border:1px solid #1e2530;border-radius:6px;padding:9px 10px;color:#ccc;font-family:'Courier New',monospace;font-size:11px;outline:none;}
+    #reaccion-grupos-hint{font-size:9px;color:#444;margin-top:4px;letter-spacing:0.5px;}
+    #btn-simular{width:100%;font-family:'Courier New',monospace;font-size:12px;letter-spacing:2px;padding:10px;background:rgba(255,159,28,0.1);border:1px solid #ff9f1c;border-radius:8px;color:#ff9f1c;cursor:pointer;transition:all 0.2s;margin-bottom:16px;}
+    #btn-simular:hover{background:rgba(255,159,28,0.2);color:#ffb84d;}
+    #btn-simular:disabled{opacity:0.35;cursor:not-allowed;}
+    #reaccion-resultado{display:none;border-top:1px solid #1e2530;padding-top:14px;}
+    #reaccion-resultado.show{display:block;}
+    .reaccion-msg-error{font-size:11px;color:#ef233c;line-height:1.6;background:#1a0a0a;border:1px solid #3a1010;border-radius:8px;padding:12px;}
+    .reaccion-msg-info{font-size:9px;color:#666;line-height:1.6;margin-top:8px;}
+    #reaccion-nombre-tipo{font-size:14px;color:#06d6a0;font-weight:bold;letter-spacing:1px;margin-bottom:6px;}
+    #reaccion-descripcion{font-size:10px;color:#888;letter-spacing:0.5px;margin-bottom:10px;}
+    #reaccion-explicacion{font-size:10px;color:#999;line-height:1.7;border-left:2px solid #1e2530;padding-left:10px;margin-bottom:14px;}
+    #reaccion-productos{display:flex;gap:12px;flex-wrap:wrap;}
+    .reaccion-producto-card{flex:1;min-width:140px;background:#0d1219;border:1px solid #1a2030;border-radius:10px;padding:10px;text-align:center;}
+    .reaccion-producto-card img{width:100%;max-width:160px;background:#fff;border-radius:6px;margin-bottom:6px;}
+    .reaccion-producto-smiles{font-size:9px;color:#7bbfff;word-break:break-all;}
+    .reaccion-producto-formula{font-size:10px;color:#06d6a0;margin-top:2px;}
+    .reaccion-producto-warn{font-size:8px;color:#ffbe0b;margin-top:4px;}
+    #reaccion-alt-toggle{font-size:9px;color:#444;letter-spacing:1px;margin-top:10px;cursor:pointer;text-decoration:underline;display:none;}
+
+    /* ── VISOR 3D REACCIÓN ─────────────────────────────── */
+    #rx-3d-section{margin-top:16px;border:1px solid #2a2010;border-radius:12px;overflow:hidden;display:none;}
+    #rx-3d-hdr{background:#0d1008;padding:8px 12px;border-bottom:1px solid #2a2010;display:flex;justify-content:space-between;align-items:center;}
+    #rx-3d-hdr-title{font-family:'Courier New',monospace;font-size:9px;color:#666;letter-spacing:2px;}
+    .rx3btns{display:flex;gap:4px;}
+    .rx3btn{font-family:'Courier New',monospace;font-size:8px;padding:3px 8px;border-radius:4px;border:1px solid #2a2010;background:rgba(0,0,0,0.5);color:#555;cursor:pointer;transition:all 0.15s;letter-spacing:1px;}
+    .rx3btn:hover{border-color:#ff9f1c;color:#ff9f1c;}
+    .rx3btn.active{border-color:#06d6a0;color:#06d6a0;}
+    #rx-3d-grid{display:flex;align-items:center;padding:10px 6px;gap:4px;background:#060810;min-height:165px;}
+    .rx-3d-side{flex:1;min-width:0;}
+    .rx-3d-slabel{font-family:'Courier New',monospace;font-size:8px;color:#444;letter-spacing:2px;text-align:center;margin-bottom:6px;}
+    .rx-3d-mols{display:flex;gap:4px;justify-content:center;align-items:flex-end;flex-wrap:wrap;}
+    .rx-plus-sign{font-size:16px;color:#444;margin:0 2px;padding-bottom:28px;font-family:'Courier New',monospace;}
+    .rx-mol-unit{display:flex;flex-direction:column;align-items:center;gap:3px;}
+    .rx-mol-vbox{width:115px;height:110px;background:#08080f;border:1px solid #1a2030;border-radius:8px;position:relative;overflow:hidden;}
+    .rx-mol-status{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'Courier New',monospace;font-size:9px;color:#444;pointer-events:none;}
+    .rx-mol-lbl{font-family:'Courier New',monospace;font-size:10px;color:#ccc;text-align:center;}
+    .rx-mol-sm{font-family:'Courier New',monospace;font-size:7px;color:#555;text-align:center;max-width:115px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    #rx-3d-arrow-col{flex-shrink:0;width:50px;display:flex;flex-direction:column;align-items:center;gap:4px;padding-bottom:24px;}
+    .rx-arr-heat{font-family:'Courier New',monospace;font-size:9px;color:#ff9f1c;letter-spacing:1px;animation:rxPulse 2s ease-in-out infinite;}
+    .rx-arr-sym{font-size:26px;color:#ff9f1c;animation:rxPulse 2s ease-in-out infinite;line-height:1;}
+    .rx-arr-cond{font-family:'Courier New',monospace;font-size:7px;color:#555;letter-spacing:0.5px;text-align:center;line-height:1.4;}
+    .rx-react-anim .rx-mol-vbox{animation:rxReactMove 3.5s ease-in-out infinite;}
+    .rx-prod-anim  .rx-mol-vbox{animation:rxProdMove  3.5s ease-in-out infinite;}
+    @keyframes rxPulse    {0%,100%{opacity:0.3;}50%{opacity:1;}}
+    @keyframes rxReactMove{0%,100%{transform:translateX(0);}50%{transform:translateX(5px);}}
+    @keyframes rxProdMove {0%,100%{transform:translateX(0);}50%{transform:translateX(-5px);}}
+  </style>
+</head>
+<body>
+
+<!-- ═══ PANTALLA DE CARGA ══════════════════════════════════════════
+     RDKit pesa unos pocos MB y los modelos otro medio. Mientras llegan
+     se muestra esto en lugar de una interfaz a medio funcionar.
+     ═══════════════════════════════════════════════════════════════ -->
+<div id="carga-quimica" style="
+     position:fixed;inset:0;z-index:9999;background:#000;
+     display:flex;flex-direction:column;align-items:center;justify-content:center;
+     gap:18px;font-family:'Courier New',monospace;transition:opacity .4s ease;">
+  <div style="font-size:20px;letter-spacing:6px;color:#fff;">PINCHDRAW</div>
+  <div style="font-size:10px;letter-spacing:3px;color:#555;">RECONOCIMIENTO MOLECULAR</div>
+  <div style="width:260px;height:2px;background:#1a1a1a;overflow:hidden;">
+    <div id="carga-barra" style="width:5%;height:100%;background:#06d6a0;transition:width .3s ease;"></div>
+  </div>
+  <div id="carga-texto" style="font-size:10px;color:#777;letter-spacing:1px;">Iniciando…</div>
+</div>
+
+
+<div id="ui">
+  <div id="branding">
+    <div id="title">Proyecto programacion PT 4</div>
+    <div id="subtitle">Analisis molecular SFS</div>
+  </div>
+  <div id="status-cluster">
+    <div id="state-badge">SIN MANO</div>
+    <!-- Feedback visual en tiempo real: se actualiza dentro del draw() de p5.js -->
+    <div id="live-detection" class="wait">No reconocido aún</div>
+  </div>
+</div>
+
+<div id="reactivos-panel">
+  <div class="reactivo-chip" id="chip-reactivo-1">R1: —</div>
+  <div class="reactivo-chip" id="chip-reactivo-2">R2: —</div>
+</div>
+<div id="correction-panel">
+  <label>CORRECCIÓN</label>
+  <div id="eps-row">
+    <input type="range" id="eps-slider" min="2" max="40" value="14">
+    <span id="eps-value">14 px</span>
+  </div>
+</div>
+<div id="hint">
+  ☝ Extiende solo el índice → DIBUJA &nbsp;|&nbsp; 🖐 Abre palma → PAUSA<br>
+  Mira arriba la detección en vivo o presiona 🔬 ANALIZAR para confirmar
+</div>
+
+<!-- Preview de cámara en vivo: solo visual, no recibe clics ni afecta el dibujo -->
+<div id="camera-preview" class="offline">
+  <video id="camera-feed" autoplay muted playsinline></video>
+  <div id="camera-preview-label">📷 CÁMARA</div>
+</div>
+<!-- ── BOTÓN GUÍA ──────────────────────────────────── -->
+<button id="btn-guia" onclick="toggleGuia()">📚 GUÍA</button>
+<!-- Historial persistente: abre una barra lateral con las moléculas detectadas -->
+<button id="btn-historial" onclick="toggleHistorial()">🕘 HISTORIAL</button>
+
+<!-- ── PANEL HISTORIAL LATERAL ─────────────────────── -->
+<div id="historial-panel">
+  <div id="historial-hdr">
+    <div id="historial-hdr-row">
+      <div id="historial-titulo">🕘 HISTORIAL</div>
+      <button id="historial-x" onclick="toggleHistorial()">✕</button>
+    </div>
+    <div id="historial-sub">moléculas detectadas · guardado localmente en este navegador</div>
+  </div>
+  <div id="historial-list"></div>
+  <div id="historial-actions">
+    <button class="historial-action" type="button" onclick="exportarHistorialCSV()">📥 Exportar CSV</button>
+    <button class="historial-action" type="button" onclick="limpiarHistorial()">🧹 Limpiar historial</button>
+  </div>
+</div>
+
+<!-- ── PANEL GUÍA LATERAL ──────────────────────────── -->
+<div id="guia-panel">
+  <div id="guia-hdr">
+    <div id="guia-hdr-row">
+      <div id="guia-titulo">📚 GUÍA MOLECULAR</div>
+      <button id="guia-x" onclick="toggleGuia()">✕</button>
+    </div>
+    <div id="guia-sub">para curiosos y científicos pequeños 🔬</div>
+  </div>
+
+  <div class="g-tabs">
+    <button class="g-tab active" id="gtab-dibujar" onclick="showGuiaTab('dibujar')">✏️ CÓMO DIBUJAR</button>
+    <button class="g-tab" id="gtab-rx"      onclick="showGuiaTab('rx')">⚗️ REACCIONES</button>
+  </div>
+
+  <!-- Tab: cómo dibujar cada molécula -->
+  <div class="g-body" id="guia-tab-dibujar"></div>
+
+  <!-- Tab: reacciones comunes -->
+  <div class="g-body" id="guia-tab-rx" style="display:none"></div>
+</div>
+<div id="buttons">
+  <button class="btn" id="btn-undo">↩ DESHACER</button>
+  <button class="btn" id="btn-borrar-punto" title="Borra el último punto del trazo continuo o el último trazo separado">⌫ BORRAR ÚLTIMO TRAZO</button>
+  <button class="btn" id="btn-clear">✕ LIMPIAR</button>
+  <button class="btn" id="btn-export" title="Descarga solo el dibujo, sin interfaz ni cámara">📷 EXPORTAR PNG</button>
+  <button class="btn" id="btn-drawing-mode" type="button" title="Alterna entre pinza y dedo índice">🖐 MODO DIBUJO</button>
+  <span id="drawing-mode-label">Modo lápiz</span>
+  <button class="btn" id="btn-catalogo">⚛ CATÁLOGO 250+</button>
+  <button class="btn" id="btn-cache" title="Borrar datos locales de PubChem">🧹 CACHÉ</button>
+  <button class="btn" id="btn-analizar" disabled>🔬 ANALIZAR</button>
+  <button class="btn" id="btn-reaccion">🧪 REACCIÓN</button>
+</div>
+
+<div id="catalogo-modal" class="hidden">
+  <div id="catalogo-card">
+    <button id="catalogo-close">✕</button>
+    <div id="catalogo-titulo">⚛ CATÁLOGO VISUAL DE COMPUESTOS</div>
+    <div id="catalogo-subtitulo">
+      Incluye las 250 moléculas ambientales del dataset. Busca por nombre, fórmula, SMILES o forma de trazo.
+    </div>
+    <div id="catalogo-controls">
+      <input id="catalogo-search" type="search" placeholder="Buscar molécula, fórmula, SMILES o trazo..." autocomplete="off"/>
+      <span id="catalogo-count">0 moléculas</span>
+    </div>
+    <div id="catalogo-grid"></div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div id="mol-modal" class="hidden">
+  <div id="mol-card">
+    <button id="mol-close">✕</button>
+    <div id="mol-header">
+      <div id="mol-icon"></div>
+      <div>
+        <div id="mol-nombre">—</div>
+        <div id="mol-formula-display">—</div>
+        <div id="mol-tipo-display">—</div>
+      </div>
+    </div>
+    <div id="mol-body">
+      <div id="mol-img-box">
+        <img id="mol-img" src="" alt="2D">
+        <div id="mol-img-fallback">Sin imagen</div>
+      </div>
+      <div id="mol-props">
+        <div class="mol-prop"><span class="mol-prop-label">SMILES</span><span class="mol-prop-val smiles" id="mol-smiles">—</span></div>
+        <div class="mol-prop"><span class="mol-prop-label">Peso molecular</span><span class="mol-prop-val" id="mol-peso">—</span></div>
+        <div class="mol-prop"><span class="mol-prop-label">Nombre IUPAC</span><span class="mol-prop-val" id="mol-iupac">—</span></div>
+      </div>
+    </div>
+    <div id="mol-desc">—</div>
+
+    <!-- VISOR 3D -->
+    <div id="mol-3d-section">
+      <div id="mol-3d-header">
+        <span id="mol-3d-label">ESTRUCTURA 3D — PubChem</span>
+        <div id="mol-3d-btns">
+          <button class="d3btn active" id="d3-stick"     onclick="set3dStyle('stick')">⬤ Stick</button>
+          <button class="d3btn"        id="d3-sphere"    onclick="set3dStyle('sphere')">● Esferas</button>
+          <button class="d3btn"        id="d3-surface"   onclick="set3dStyle('surface')">◈ Sup.</button>
+          <button class="d3btn"        id="d3-spin"      onclick="toggle3dSpin()">⟳</button>
+          <button class="d3btn"        id="d3-center"    onclick="if(viewer3d){viewer3d.zoomTo();viewer3d.render();}">⊙</button>
+        </div>
+      </div>
+      <div id="mol-3d-viewer" style="position:relative;">
+        <div id="mol-3d-status">Cargando estructura 3D…</div>
+      </div>
+    </div>
+
+    <div id="confianza-row">
+      <span id="confianza-label">CONFIANZA</span>
+      <div id="confianza-track"><div id="confianza-bar"></div></div>
+      <span id="confianza-pct">—</span>
+    </div>
+
+    <!-- ═══ SECCIÓN GNN ═══════════════════════════════════ -->
+    <div id="gnn-section">
+      <div id="gnn-header" onclick="toggleGNN()">
+        <span id="gnn-header-label">🧬 PREDICCIONES GNN</span>
+        <span id="gnn-badge">—</span>
+      </div>
+      <div id="gnn-body">
+        <!-- La química aún no terminó de cargar -->
+        <div id="gnn-servidor-off">
+          Cargando el motor de química…
+        </div>
+
+        <!-- Solubilidad -->
+        <div class="gnn-prop" id="gnn-sol-row" style="display:none">
+          <div class="gnn-prop-header">
+            <span class="gnn-prop-label">💧 SOLUBILIDAD (logS)</span>
+            <span class="gnn-prop-val" id="gnn-logs">—</span>
+          </div>
+          <div class="gnn-track"><div class="gnn-bar" id="gnn-logs-bar"></div></div>
+          <span class="gnn-prop-interp" id="gnn-sol-interp">—</span>
+          <span class="gnn-prop-interp" id="gnn-sol-mol">—</span>
+        </div>
+
+        <div class="gnn-divider" id="gnn-div1" style="display:none"></div>
+
+        <!-- Toxicidad -->
+        <div class="gnn-prop" id="gnn-tox-row" style="display:none">
+          <div class="gnn-prop-header">
+            <span class="gnn-prop-label">☠ TOXICIDAD (Tox21)</span>
+            <span class="gnn-pred-tag" id="gnn-tox-tag">—</span>
+          </div>
+          <div class="gnn-track"><div class="gnn-bar" id="gnn-tox-bar"></div></div>
+          <span class="gnn-prop-interp" id="gnn-tox-detail">—</span>
+        </div>
+
+        <div class="gnn-divider" id="gnn-div2" style="display:none"></div>
+
+        <!-- BBBP -->
+        <div class="gnn-prop" id="gnn-bbb-row" style="display:none">
+          <div class="gnn-prop-header">
+            <span class="gnn-prop-label">🧠 BARRERA HEMATOENCEF.</span>
+            <span class="gnn-pred-tag" id="gnn-bbb-tag">—</span>
+          </div>
+          <div class="gnn-track"><div class="gnn-bar" id="gnn-bbb-bar"></div></div>
+          <span class="gnn-prop-interp" id="gnn-bbb-detail">—</span>
+        </div>
+      </div>
+    </div>
+    <div id="mol-alts-row"><span id="mol-alts-label">¿OTRA?</span></div>
+
+    <div id="reaccion-pick-row">
+      <button class="reaccion-pick-btn" id="btn-set-r1">⚗ Usar como Reactivo 1</button>
+      <button class="reaccion-pick-btn" id="btn-set-r2">⚗ Usar como Reactivo 2</button>
+    </div>
+
+    <a id="pubchem-link" href="#" target="_blank">Ver en PubChem →</a>
+  </div>
+</div>
+
+<div id="reaccion-modal" class="hidden">
+  <div id="reaccion-card">
+    <button id="reaccion-close">✕</button>
+    <div id="reaccion-titulo">🧪 SIMULACIÓN DE REACCIÓN</div>
+    <div id="reaccion-subtitulo">RDKit · ReactionFromSmarts + RunReactants</div>
+
+    <div class="reaccion-input-row">
+      <label>Reactante 1 (SMILES)</label>
+      <input type="text" id="input-r1" placeholder="ej. CC(=O)O  (ácido acético)">
+    </div>
+    <div class="reaccion-input-row">
+      <label>Reactante 2 (SMILES)</label>
+      <input type="text" id="input-r2" placeholder="ej. CCO  (etanol)">
+    </div>
+
+    <div id="reaccion-tipo-row">
+      <label>Tipo de reacción</label>
+      <select id="reaccion-tipo">
+        <option value="esterificacion">Esterificación (Ácido + Alcohol → Éster + Agua)</option>
+      </select>
+      <div id="reaccion-grupos-hint"></div>
+    </div>
+
+    <div id="reacciones-visuales">
+      <div id="reacciones-visuales-title">Reacciones visuales sugeridas</div>
+      <div id="reacciones-visuales-grid"></div>
+    </div>
+
+    <button id="btn-simular">▶ SIMULAR REACCIÓN</button>
+
+    <div id="reaccion-resultado"></div>
+
+    <!-- ── VISOR 3D LADO A LADO ──────────────────────── -->
+    <div id="rx-3d-section">
+      <div id="rx-3d-hdr">
+        <span id="rx-3d-hdr-title">⚛ ESTRUCTURAS 3D — REACTANTES → PRODUCTOS</span>
+        <div class="rx3btns">
+          <button class="rx3btn active" id="rx3-stick"   onclick="setRx3Style('stick')">⬤ Stick</button>
+          <button class="rx3btn"        id="rx3-sphere"  onclick="setRx3Style('sphere')">● Esf.</button>
+          <button class="rx3btn active" id="rx3-spin"    onclick="toggleRx3Spin()">⟳ Rotar</button>
+        </div>
+      </div>
+      <div id="rx-3d-grid">
+        <div class="rx-3d-side rx-react-anim">
+          <div class="rx-3d-slabel">REACTANTES</div>
+          <div class="rx-3d-mols" id="rx3-reactants"></div>
+        </div>
+        <div id="rx-3d-arrow-col">
+          <div class="rx-arr-heat">Δ</div>
+          <div class="rx-arr-sym">→</div>
+          <div class="rx-arr-cond" id="rx3-cond">condiciones</div>
+        </div>
+        <div class="rx-3d-side rx-prod-anim">
+          <div class="rx-3d-slabel">PRODUCTOS</div>
+          <div class="rx-3d-mols" id="rx3-products"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.3/p5.min.js"></script>
+<script src="molecules_250.js"></script>
+<script src="elementos_quimicos.js"></script>
+
+<script>
+
+let handsData=[],videoElement=null,mpHands=null;
+const stateBadge=document.getElementById('state-badge');
+const liveDetection=document.getElementById('live-detection');
+const cameraPreview=document.getElementById('camera-preview');
+const cameraFeed=document.getElementById('camera-feed');
+const historialPanel=document.getElementById('historial-panel');
+const historialList=document.getElementById('historial-list');
+const epsSlider=document.getElementById('eps-slider');
+const epsValue=document.getElementById('eps-value');
+const drawingModeButton=document.getElementById('btn-drawing-mode');
+const drawingModeLabel=document.getElementById('drawing-mode-label');
+const DRAWING_MODE_KEY='pinchdraw_modo_dibujo_v1';
+let drawingMode=localStorage.getItem(DRAWING_MODE_KEY)==='pinza'?'pinza':'lapiz';
+epsSlider.addEventListener('input',()=>{epsValue.textContent=epsSlider.value+' px';});
+
+// ══════════════════════════════════════════════════════
+//  MODO PERFILADO — TEMPORAL, se activa solo con ?perf=1
+//  Sirve para medir el coste real de p.draw() y comparar A/B las
+//  optimizaciones candidatas sin tener que recompilar entre pruebas.
+//  Sin ?perf=1 el comportamiento es exactamente el actual: los toggles
+//  arrancan en los valores de hoy y solo se evalúa un booleano por frame.
+// ══════════════════════════════════════════════════════
+const PERF=new URLSearchParams(location.search).has('perf');
+const perf={
+  videoCSS:false,        // false = vídeo dibujado en el canvas (comportamiento actual)
+  badgeOnChange:false,   // false = se escribe stateBadge en cada frame (actual)
+  complejidad:1,         // modelComplexity de MediaPipe (actual)
+  box:null,
+  t:{video:0,capas:0,mano:0,total:0},n:0,frames:0,tUlt:0,fps:0
+};
+let camStream=null,bgVideoEl=null;
+
+// Escritura del badge. Con badgeOnChange se evita tocar el DOM cuando el texto
+// no ha cambiado; por defecto se comporta igual que antes para que el A/B sea justo.
+let ultBadgeTxt=null,ultBadgeCls=null;
+function setBadge(txt,cls){
+  if(perf.badgeOnChange&&txt===ultBadgeTxt&&cls===ultBadgeCls) return;
+  ultBadgeTxt=txt;ultBadgeCls=cls;
+  stateBadge.textContent=txt;stateBadge.className=cls;
+}
+
+function drawingModeName(){return drawingMode==='pinza'?'Modo pinza':'Modo lápiz';}
+function updateDrawingModeUI(){
+  drawingModeLabel.textContent=drawingModeName();
+  drawingModeButton.setAttribute('aria-pressed',drawingMode==='pinza'?'true':'false');
+  document.getElementById('hint').innerHTML=drawingMode==='pinza'
+    ?'🤏 Junta pulgar + índice → DIBUJA &nbsp;|&nbsp; 🖐 Abre palma → PAUSA<br>Mira arriba la detección en vivo o presiona 🔬 ANALIZAR para confirmar'
+    :'☝ Extiende solo el índice → DIBUJA &nbsp;|&nbsp; 🖐 Abre palma → PAUSA<br>Mira arriba la detección en vivo o presiona 🔬 ANALIZAR para confirmar';
+}
+function toggleDrawingMode(){
+  drawingMode=drawingMode==='pinza'?'lapiz':'pinza';
+  localStorage.setItem(DRAWING_MODE_KEY,drawingMode);
+  updateDrawingModeUI();
+}
+drawingModeButton.addEventListener('click',toggleDrawingMode);
+updateDrawingModeUI();
+
+const THUMB_TIP=4,INDEX_TIP=8,INDEX_PIP=6,MID_TIP=12,MID_PIP=10;
+const RING_TIP=16,RING_PIP=14,PINKY_TIP=20,PINKY_PIP=18;
+const TIPS=[4,8,12,16,20];
+const CONNECTIONS=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],
+  [0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],
+  [0,17],[17,18],[18,19],[19,20],[5,9],[9,13],[13,17],[0,5]];
+
+function initMediaPipe(){
+  videoElement=document.createElement('video');
+  videoElement.setAttribute('playsinline','');videoElement.style.display='none';
+  document.body.appendChild(videoElement);
+  mpHands=new Hands({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`});
+  mpHands.setOptions({maxNumHands:1,modelComplexity:perf.complejidad,minDetectionConfidence:0.75,minTrackingConfidence:0.6});
+  mpHands.onResults(r=>{handsData=r.multiHandLandmarks||[];});
+  new Camera(videoElement,{
+    onFrame:async()=>{if(mpHands) await mpHands.send({image:videoElement});},
+    width:1280,height:720
+  }).start().catch(()=>{stateBadge.textContent='❌ ERROR CÁMARA';});
+}
+
+function lmDist(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
+function isExtended(lm,tip,pip){return lm[tip].y<lm[pip].y;}
+function isIndexExtended(lm){return isExtended(lm,INDEX_TIP,INDEX_PIP);}
+function isOnlyIndexExtended(lm){
+  return isIndexExtended(lm) &&
+    !isExtended(lm,MID_TIP,MID_PIP) &&
+    !isExtended(lm,RING_TIP,RING_PIP) &&
+    !isExtended(lm,PINKY_TIP,PINKY_PIP);
+}
+function countExtended(lm){
+  return [[INDEX_TIP,INDEX_PIP],[MID_TIP,MID_PIP],[RING_TIP,RING_PIP],[PINKY_TIP,PINKY_PIP]]
+    .filter(([t,p])=>isExtended(lm,t,p)).length;
+}
+function isPinching(lm){return lmDist(lm[THUMB_TIP],lm[INDEX_TIP])<0.07;}
+function isPalmOpen(lm){return countExtended(lm)>=3;}
+function isDrawingGesture(lm){return drawingMode==='pinza'?isPinching(lm):isOnlyIndexExtended(lm);}
+function drawingPoint(lm,width,height){
+  if(drawingMode==='pinza'){
+    return{x:width-(lm[THUMB_TIP].x+lm[INDEX_TIP].x)*0.5*width,y:(lm[THUMB_TIP].y+lm[INDEX_TIP].y)*0.5*height};
+  }
+  return{x:width-lm[INDEX_TIP].x*width,y:lm[INDEX_TIP].y*height};
+}
+
+
+function distPS(p,a,b){
+  const dx=b.x-a.x,dy=b.y-a.y,l=dx*dx+dy*dy;
+  if(!l) return Math.hypot(p.x-a.x,p.y-a.y);
+  const t=Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/l));
+  return Math.hypot(p.x-(a.x+t*dx),p.y-(a.y+t*dy));
+}
+function rdp(pts,eps){
+  if(pts.length<3) return [...pts];
+  let md=0,mi=0;
+  for(let i=1;i<pts.length-1;i++){const d=distPS(pts[i],pts[0],pts[pts.length-1]);if(d>md){md=d;mi=i;}}
+  if(md>eps) return [...rdp(pts.slice(0,mi+1),eps).slice(0,-1),...rdp(pts.slice(mi),eps)];
+  return [pts[0],pts[pts.length-1]];
+}
+function spline(dc,pts,col,w){
+  if(pts.length<2) return;
+  dc.strokeStyle=col;dc.lineWidth=w;dc.lineCap='round';dc.lineJoin='round';dc.shadowBlur=0;
+  dc.beginPath();dc.moveTo(pts[0].x,pts[0].y);
+  if(pts.length===2){dc.lineTo(pts[1].x,pts[1].y);}
+  else{const T=0.4;for(let i=0;i<pts.length-1;i++){const p0=pts[Math.max(0,i-1)],p1=pts[i],p2=pts[i+1],p3=pts[Math.min(pts.length-1,i+2)];dc.bezierCurveTo(p1.x+(p2.x-p0.x)*T/3,p1.y+(p2.y-p0.y)*T/3,p2.x-(p3.x-p1.x)*T/3,p2.y-(p3.y-p1.y)*T/3,p2.x,p2.y);}}
+  dc.stroke();
+}
+const SW=7;let sB=[];
+function rS(){sB=[];}
+function sP(r){sB.push(r);if(sB.length>SW)sB.shift();let wx=0,wy=0,wT=0;sB.forEach((p,i)=>{const w=i+1;wx+=p.x*w;wy+=p.y*w;wT+=w;});return{x:wx/wT,y:wy/wT};}
+
+function extraerF(strokes){
+  if(!strokes||!strokes.length) return null;
+  const all=strokes.flatMap(s=>s.pts);
+  if(all.length<2) return null;
+  const xs=all.map(p=>p.x),ys=all.map(p=>p.y);
+  const w=Math.max(...xs)-Math.min(...xs),h=Math.max(...ys)-Math.min(...ys);
+  const ar=h>10?w/h:99;
+  const pp=strokes.reduce((a,b)=>a.pts.length>b.pts.length?a:b).pts;
+  let nc=0;
+  for(let i=1;i<pp.length-1;i++){
+    const v1={x:pp[i].x-pp[i-1].x,y:pp[i].y-pp[i-1].y},v2={x:pp[i+1].x-pp[i].x,y:pp[i+1].y-pp[i].y};
+    const l1=Math.hypot(v1.x,v1.y),l2=Math.hypot(v2.x,v2.y);
+    if(l1<1||l2<1) continue;
+    if(Math.acos(Math.max(-1,Math.min(1,(v1.x*v2.x+v1.y*v2.y)/(l1*l2))))*180/Math.PI>25) nc++;
+  }
+  const dc=pp.length>3?Math.hypot(pp[0].x-pp[pp.length-1].x,pp[0].y-pp[pp.length-1].y):999;
+  // rectitud = largo del trazo / distancia entre extremos.
+  //   ≈1  → recto (línea/enlace);  >1.2 → zig-zag (cadena);  99 → cerrado/compacto.
+  let plen=0;for(let i=1;i<pp.length;i++){plen+=Math.hypot(pp[i].x-pp[i-1].x,pp[i].y-pp[i-1].y);}
+  const e2e=pp.length>1?Math.hypot(pp[0].x-pp[pp.length-1].x,pp[0].y-pp[pp.length-1].y):0;
+  const rectitud=e2e>5?plen/e2e:99;
+  return{numTrazos:strokes.length,aspectRatio:ar,numCodos:nc,esCerrado:dc<Math.max(40,Math.max(w,h)*0.15),rectitud:rectitud};
+}
+
+const DB=[
+  {id:'benzeno',nombre:'Benceno',nombre_en:'benzene',formula:'C₆H₆',smiles:'c1ccccc1',peso:'78.11 g/mol',tipo:'Hidrocarburo aromático',descripcion:'Anillo hexagonal con 6 carbonos y electrones π deslocalizados. Molécula aromática fundamental. Cumple la Regla de Hückel (4n+2, n=1). Descubierto por Faraday en 1825.',color:'#3a86ff',icono:'⬡',score(f){let s=0;if(f.esCerrado)s+=38;if(f.numTrazos===1)s+=10;if(f.numCodos>=5&&f.numCodos<=8)s+=38;if(f.aspectRatio>=0.7&&f.aspectRatio<=1.4)s+=14;return s;}},
+  {id:'ciclopentano',nombre:'Ciclopentano',nombre_en:'cyclopentane',formula:'C₅H₁₀',smiles:'C1CCCC1',peso:'70.13 g/mol',tipo:'Cicloalcano',descripcion:'Anillo de 5 carbonos saturado. Conf. envelope. Presente en esteroides y terpenos. Tensión angular menor que el ciclobutano (ángulo ≈ 108°).',color:'#06d6a0',icono:'⬠',score(f){let s=0;if(f.esCerrado)s+=38;if(f.numTrazos===1)s+=10;if(f.numCodos>=4&&f.numCodos<=5)s+=40;if(f.aspectRatio>=0.8&&f.aspectRatio<=1.25)s+=12;return s;}},
+  {id:'ciclopropano',nombre:'Ciclopropano',nombre_en:'cyclopropane',formula:'C₃H₆',smiles:'C1CC1',peso:'42.08 g/mol',tipo:'Cicloalcano',descripcion:'3 carbonos en anillo. Ángulo de enlace ≈ 60° (enorme tensión de Baeyer). Muy reactivo. Sus orbitales solapan lateralmente (banana bonds).',color:'#ff9f1c',icono:'▲',score(f){let s=0;if(!f.esCerrado)return 0;if(f.numTrazos===1)s+=18;if(f.numCodos>=2&&f.numCodos<=3)s+=50;if(f.aspectRatio>=0.65&&f.aspectRatio<=1.4)s+=18;return s;}},
+  {id:'agua',nombre:'Agua',nombre_en:'water',formula:'H₂O',smiles:'O',peso:'18.02 g/mol',tipo:'Óxido de hidrógeno',descripcion:'Molécula angular: ángulo H-O-H ≈ 104.5°. Dipolo permanente. Solvente universal. Alta capacidad calorífica. Esencial para toda vida conocida.',color:'#48cae4',icono:'💧',score(f){let s=0;if(!f.esCerrado)s+=22;if(f.numCodos===1)s+=48;if(f.numTrazos<=2)s+=15;if(f.aspectRatio>=0.4&&f.aspectRatio<=2.8)s+=15;return s;}},
+  {id:'amoniaco',nombre:'Amoniaco',nombre_en:'ammonia',formula:'NH₃',smiles:'N',peso:'17.03 g/mol',tipo:'Hidruro de nitrógeno',descripcion:'Geometría piramidal trigonal. Par de e⁻ libres en N (base de Lewis). Proceso Haber-Bosch. Fundamental en fertilizantes nitrogenados.',color:'#9d4edd',icono:'🔺',score(f){let s=0;if(!f.esCerrado)s+=20;if(f.numCodos===2)s+=48;if(f.numTrazos===1)s+=15;if(f.aspectRatio>=0.5&&f.aspectRatio<=2.0)s+=17;return s;}},
+  {id:'co2',nombre:'Dióxido de Carbono',nombre_en:'carbon dioxide',formula:'CO₂',smiles:'O=C=O',peso:'44.01 g/mol',tipo:'Óxido de carbono',descripcion:'Molécula lineal: ángulo O=C=O = 180°. Dos dobles enlaces. Apolar. Gas de efecto invernadero. Producto de la respiración y combustión.',color:'#ef233c',icono:'↔',score(f){let s=0;if(f.aspectRatio>2.5)s+=50;if(f.aspectRatio>1.8)s+=15;if(f.numCodos<=1)s+=25;if(!f.esCerrado)s+=10;return s;}},
+  {id:'metano',nombre:'Metano',nombre_en:'methane',formula:'CH₄',smiles:'C',peso:'16.04 g/mol',tipo:'Alcano',descripcion:'Hidrocarburo más simple. Geometría tetraédrica (109.5°). Principal componente del gas natural. 25× más potente que el CO₂ como gas de efecto invernadero.',color:'#fb8500',icono:'✳',score(f){let s=0;if(f.numTrazos>=2&&f.numTrazos<=5)s+=35;if(!f.esCerrado)s+=20;if(f.aspectRatio>=0.4&&f.aspectRatio<=2.2)s+=20;if(f.numCodos>=2&&f.numCodos<=6)s+=25;return s;}},
+  {id:'hidrogeno',nombre:'Hidrógeno',nombre_en:'hydrogen',formula:'H₂',smiles:'[H][H]',peso:'2.02 g/mol',tipo:'Molécula diatómica',descripcion:'Molécula diatómica ligera. Participa en reacciones de hidrogenación y combustión; en química industrial es clave para amoniaco y combustibles.',color:'#e9ecef',icono:'H',score(){return 0;}},
+  {id:'oxigeno',nombre:'Oxígeno',nombre_en:'oxygen',formula:'O₂',smiles:'O=O',peso:'32.00 g/mol',tipo:'Molécula diatómica',descripcion:'Oxidante fundamental. Permite combustión y respiración; en reacciones orgánicas aparece como agente de oxidación o reactivo ambiental.',color:'#ef476f',icono:'O₂',score(){return 0;}},
+  {id:'nitrogeno',nombre:'Nitrógeno',nombre_en:'nitrogen',formula:'N₂',smiles:'N#N',peso:'28.01 g/mol',tipo:'Molécula diatómica',descripcion:'Gas mayoritario del aire. Su triple enlace lo vuelve muy estable; se activa industrialmente en el proceso Haber-Bosch.',color:'#7b2cbf',icono:'N₂',score(){return 0;}},
+  {id:'metanol',nombre:'Metanol',nombre_en:'methanol',formula:'CH₄O',smiles:'CO',peso:'32.04 g/mol',tipo:'Alcohol',descripcion:'Alcohol más simple. Es polar, inflamable y tóxico; sirve para explicar grupos hidroxilo y oxidación de alcoholes.',color:'#80ed99',icono:'MeOH',score(f){let s=0;if(f.esCerrado)return 0;if(f.numCodos===0)s+=30;else if(f.numCodos===1)s+=14;if(f.aspectRatio>=0.4&&f.aspectRatio<=1.2)s+=28;if(f.rectitud<1.8)s+=14;if(f.numTrazos<=2)s+=12;return s;}},
+  {id:'etanol',nombre:'Etanol',nombre_en:'ethanol',formula:'C₂H₆O',smiles:'CCO',peso:'46.07 g/mol',tipo:'Alcohol',descripcion:'Alcohol primario presente en bebidas alcohólicas y laboratorio. Puede oxidarse y reaccionar con ácidos carboxílicos para formar ésteres.',color:'#57cc99',icono:'EtOH',score(f){let s=0;if(f.esCerrado)return 0;if(f.numTrazos===1)s+=14;if(f.numCodos>=2&&f.numCodos<=3)s+=42;if(f.aspectRatio>=1.4&&f.aspectRatio<=4)s+=30;return s;}},
+  {id:'propanol',nombre:'1-Propanol',nombre_en:'1-propanol',formula:'C₃H₈O',smiles:'CCCO',peso:'60.10 g/mol',tipo:'Alcohol primario',descripcion:'Alcohol primario de tres carbonos. Es útil para comparar tamaño de cadena, polaridad y oxidación frente a alcoholes más pequeños.',color:'#38a3a5',icono:'PrOH',score(f){let s=0;if(f.esCerrado)return 0;if(f.numCodos===3)s+=38;if(f.aspectRatio>=2.2)s+=30;if(f.rectitud>1.15)s+=20;if(f.numTrazos===1)s+=12;return s;}},
+  {id:'acido_acetico',nombre:'Ácido acético',nombre_en:'acetic acid',formula:'C₂H₄O₂',smiles:'CC(=O)O',peso:'60.05 g/mol',tipo:'Ácido carboxílico',descripcion:'Principal ácido del vinagre. Reacciona con alcoholes en esterificación de Fischer para formar acetatos.',color:'#ff595e',icono:'AcOH',score(f){let s=0;if(f.esCerrado)return 0;if(f.numTrazos===1)s+=16;if(f.numCodos>=3&&f.numCodos<=4)s+=44;if(f.aspectRatio>=0.6&&f.aspectRatio<=1.8)s+=26;return s;}},
+  {id:'acido_formico',nombre:'Ácido fórmico',nombre_en:'formic acid',formula:'CH₂O₂',smiles:'C(=O)O',peso:'46.03 g/mol',tipo:'Ácido carboxílico',descripcion:'Ácido carboxílico más simple. Permite mostrar acidez, carbonilo y reacciones de esterificación.',color:'#ff6b6b',icono:'HCOOH',score(f){let s=0;if(f.esCerrado)return 0;if(f.numCodos>=2&&f.numCodos<=3)s+=32;if(f.aspectRatio>=0.5&&f.aspectRatio<=1.3)s+=26;if(f.rectitud>1.1)s+=14;if(f.numTrazos<=2)s+=12;return s;}},
+  {id:'acetona',nombre:'Acetona',nombre_en:'acetone',formula:'C₃H₆O',smiles:'CC(=O)C',peso:'58.08 g/mol',tipo:'Cetona',descripcion:'Cetona pequeña y solvente común. Su carbonilo ayuda a explicar polaridad y reactividad de aldehídos/cetonas.',color:'#f15bb5',icono:'C=O',score(f){let s=0;if(f.esCerrado)return 0;if(f.numTrazos>=1&&f.numTrazos<=2)s+=18;if(f.numCodos>=2&&f.numCodos<=3)s+=40;if(f.aspectRatio>=0.9&&f.aspectRatio<=2.6)s+=28;return s;}},
+  {id:'acetaldehido',nombre:'Acetaldehído',nombre_en:'acetaldehyde',formula:'C₂H₄O',smiles:'CC=O',peso:'44.05 g/mol',tipo:'Aldehído',descripcion:'Aldehído derivado de la oxidación parcial del etanol. Sirve para explicar etapas de oxidación de alcoholes primarios.',color:'#ff70a6',icono:'CHO',score(f){let s=0;if(f.esCerrado)return 0;if(f.numCodos>=1&&f.numCodos<=2)s+=30;if(f.aspectRatio>=0.9&&f.aspectRatio<=2.4)s+=26;if(f.rectitud>1.1)s+=14;if(f.numTrazos<=2)s+=12;return s;}},
+  {id:'acetato_etilo',nombre:'Acetato de etilo',nombre_en:'ethyl acetate',formula:'C₄H₈O₂',smiles:'CCOC(C)=O',peso:'88.11 g/mol',tipo:'Éster',descripcion:'Éster con olor frutal. Producto típico de ácido acético + etanol; buen ejemplo para la simulación de esterificación.',color:'#ffd166',icono:'Éster',score(f){let s=0;if(f.esCerrado)return 0;if(f.numTrazos===1)s+=12;if(f.numCodos>=4)s+=46;if(f.aspectRatio>=1.6)s+=30;return s;}},
+  {id:'eteno',nombre:'Eteno',nombre_en:'ethylene',formula:'C₂H₄',smiles:'C=C',peso:'28.05 g/mol',tipo:'Alqueno',descripcion:'Alqueno más simple. El doble enlace permite discutir adición, hidrogenación y polimerización.',color:'#4cc9f0',icono:'C=C',score(f){let s=0;if(f.esCerrado)return 0;if(f.numCodos===0)s+=28;else if(f.numCodos===1)s+=14;if(f.aspectRatio>=1.2&&f.aspectRatio<=1.95)s+=30;if(f.rectitud<1.4)s+=22;if(f.numTrazos<=2)s+=10;return s;}},
+  {id:'etino',nombre:'Etino',nombre_en:'acetylene',formula:'C₂H₂',smiles:'C#C',peso:'26.04 g/mol',tipo:'Alquino',descripcion:'Alquino pequeño con triple enlace. Útil para comparar saturación, geometría lineal y reactividad.',color:'#4895ef',icono:'C≡C',score(f){let s=0;if(f.esCerrado)return 0;if(f.numCodos===0)s+=34;if(f.rectitud<1.15)s+=30;if(f.aspectRatio>=1.9)s+=24;if(f.numTrazos===1)s+=10;return s;}},
+  {id:'propano',nombre:'Propano',nombre_en:'propane',formula:'C₃H₈',smiles:'CCC',peso:'44.10 g/mol',tipo:'Alcano',descripcion:'Alcano usado como combustible. Es buen reactivo visual para combustión y comparación con metano.',color:'#f77f00',icono:'C₃',score(f){let s=0;if(f.esCerrado)return 0;if(f.numCodos===2)s+=34;if(f.aspectRatio>=0.8&&f.aspectRatio<=1.5)s+=26;if(f.rectitud>1.15)s+=18;if(f.numTrazos===1)s+=10;return s;}},
+  {id:'cloruro_hidrogeno',nombre:'Cloruro de hidrógeno',nombre_en:'hydrogen chloride',formula:'HCl',smiles:'Cl',peso:'36.46 g/mol',tipo:'Ácido mineral',descripcion:'En agua forma ácido clorhídrico. Se usa para ilustrar neutralización ácido-base con hidróxidos.',color:'#bde0fe',icono:'HCl',score(){return 0;}},
+  {id:'hidroxido_sodio',nombre:'Hidróxido de sodio',nombre_en:'sodium hydroxide',formula:'NaOH',smiles:'[Na+].[OH-]',peso:'40.00 g/mol',tipo:'Base fuerte',descripcion:'Base fuerte usada en neutralización y saponificación. En solución aporta iones hidróxido.',color:'#90dbf4',icono:'NaOH',score(){return 0;}},
+  {id:'cloruro_sodio',nombre:'Cloruro de sodio',nombre_en:'sodium chloride',formula:'NaCl',smiles:'[Na+].[Cl-]',peso:'58.44 g/mol',tipo:'Sal iónica',descripcion:'Sal común. Producto de neutralización entre ácido clorhídrico e hidróxido de sodio.',color:'#caf0f8',icono:'NaCl',score(){return 0;}},
+  {id:'glucosa',nombre:'Glucosa',nombre_en:'glucose',formula:'C₆H₁₂O₆',smiles:'C(C1C(C(C(C(O1)O)O)O)O)O',peso:'180.16 g/mol',tipo:'Carbohidrato',descripcion:'Monosacárido esencial. Permite relacionar química orgánica, bioquímica y energía metabólica.',color:'#f9c74f',icono:'Glu',score(f){let s=0;if(!f.esCerrado)return 0;if(f.numTrazos<2)return 0;s+=40;if(f.numCodos>=4)s+=30;if(f.aspectRatio>=0.7&&f.aspectRatio<=1.4)s+=24;return s;}},
+  {id:'aspirina',nombre:'Aspirina',nombre_en:'aspirin',formula:'C₉H₈O₄',smiles:'CC(=O)Oc1ccccc1C(=O)O',peso:'180.16 g/mol',tipo:'Fármaco orgánico',descripcion:'Ácido acetilsalicílico. Contiene anillo aromático, éster y ácido carboxílico; buen ejemplo de grupos funcionales múltiples.',color:'#adb5bd',icono:'ASA',score(f){let s=0;if(!f.esCerrado)return 0;if(f.numTrazos<2)return 0;s+=38;if(f.aspectRatio>=1.35)s+=32;if(f.numCodos>=4)s+=18;return s;}},
+];
+
+// El CSV expandido se carga como un catálogo independiente. DB conserva solo las
+// plantillas que el reconocedor de trazos sabe puntuar de forma honesta.
+const DATASET_250=(window.PINCHDRAW_MOLECULES_250||[]).map(m=>({...m,score(){return 0;}}));
+
+// ── ELEMENTOS QUÍMICOS (fichas educativas) ──────────────────────────
+// Un átomo aislado no tiene forma que dibujar, así que estas fichas son de
+// catálogo: score 0 y sin predicción GNN (la red está entrenada con moléculas
+// orgánicas y sus resultados para un átomo suelto no tendrían sentido).
+const ELEMENTOS=(window.PINCHDRAW_ELEMENTOS||[]).map(e=>({
+  ...e,
+  es_elemento:true,
+  nombre_es:e.nombre,
+  tipo:e.familia,
+  tipo_es:e.familia,
+  forma:'Elemento químico',
+  trazo:`Símbolo ${e.simbolo} · Número atómico ${e.numero_atomico} · Masa ${e.masa_atomica} u · Grupo ${e.grupo}, período ${e.periodo}`,
+  score(){return 0;}
+}));
+
+const CATALOGO_DB=[...ELEMENTOS,...DATASET_250];
+const catalogoSmiles=new Set(CATALOGO_DB.map(m=>m.smiles));
+DB.forEach(m=>{if(!catalogoSmiles.has(m.smiles)) CATALOGO_DB.unshift(m);});
+// Plantillas de DB que no estaban ya en el dataset. Se cuentan aparte para que
+// el contador del catálogo cuadre: elementos + dataset por sí solos no suman el
+// total mostrado.
+const N_BASICAS=CATALOGO_DB.length-ELEMENTOS.length-DATASET_250.length;
+
+// ══════════════════════════════════════════════════════
+//  HISTORIAL PERSISTENTE DE MOLÉCULAS DETECTADAS
+//  Guarda nombre, fórmula, SMILES y fecha/hora en localStorage.
+// ══════════════════════════════════════════════════════
+const HISTORIAL_KEY='pinchdraw_historial_moleculas_v1';
+let historial=[];
+
+function leerHistorial(){
+  try{
+    const data=JSON.parse(localStorage.getItem(HISTORIAL_KEY)||'[]');
+    return Array.isArray(data)?data:[];
+  }catch(e){
+    console.warn('Historial corrupto; se reiniciará.', e);
+    localStorage.removeItem(HISTORIAL_KEY);
+    return [];
+  }
+}
+
+function guardarHistorial(){
+  localStorage.setItem(HISTORIAL_KEY, JSON.stringify(historial.slice(0,40)));
+}
+
+function fechaHistorial(){
+  return new Date().toLocaleString('es-PE',{dateStyle:'short',timeStyle:'short'});
+}
+
+function registrarHistorial(mol){
+  if(!mol||!mol.smiles) return;
+  const item={
+    id:mol.id||null,
+    nombre:mol.nombre||'Molécula',
+    formula:mol.formula||'—',
+    smiles:mol.smiles,
+    nombre_en:mol.nombre_en||mol.nombre||mol.smiles,
+    fecha_hora:fechaHistorial(),
+    ts:Date.now()
+  };
+  // Si ya existe el mismo SMILES, se mueve al inicio con fecha actual.
+  historial=historial.filter(h=>h.smiles!==item.smiles);
+  historial.unshift(item);
+  historial=historial.slice(0,40);
+  guardarHistorial();
+  renderHistorial();
+}
+
+function buscarMolPorHistorial(item){
+  return CATALOGO_DB.find(m=>m.smiles===item.smiles||m.id===item.id)||{
+    id:item.id||'historial_custom',
+    nombre:item.nombre,
+    nombre_en:item.nombre_en||item.nombre||item.smiles,
+    formula:item.formula,
+    smiles:item.smiles,
+    peso:'—',
+    tipo:'Desde historial local',
+    descripcion:'Molécula recuperada desde el historial guardado localmente en el navegador.',
+    color:'#8ecae6',
+    icono:'⚛',
+    score(){return 0;}
+  };
+}
+
+function cargarDesdeHistorial(index){
+  const item=historial[index];
+  if(!item) return;
+  const mol=buscarMolPorHistorial(item);
+  if(historialPanel) historialPanel.classList.remove('open');
+  mostrarMolecula(mol,100,[],{desdeHistorial:true});
+}
+
+function renderHistorial(){
+  if(!historialList) return;
+  historialList.innerHTML='';
+  if(!historial.length){
+    historialList.innerHTML='<div id="historial-empty">Aún no has detectado ninguna molécula.<br>¡Dibuja una!</div>';
+    return;
+  }
+  historial.forEach((h,i)=>{
+    const item=document.createElement('button');
+    item.type='button';
+    item.className='historial-item';
+    item.innerHTML=`
+      <div class="historial-top">
+        <div class="historial-nombre">${h.nombre}</div>
+        <div class="historial-formula">${h.formula}</div>
+      </div>
+      <div class="historial-smiles">${h.smiles}</div>
+      <div class="historial-fecha">${h.fecha_hora}</div>`;
+    item.addEventListener('click',()=>cargarDesdeHistorial(i));
+    historialList.appendChild(item);
+  });
+}
+
+function toggleHistorial(){
+  if(!historialPanel) return;
+  document.getElementById('guia-panel')?.classList.remove('open');
+  historialPanel.classList.toggle('open');
+}
+
+function csvHistorialValor(valor){
+  const texto=String(valor??'');
+  return `"${texto.replace(/"/g,'""')}"`;
+}
+
+function exportarHistorialCSV(){
+  if(!historial.length){
+    alert('Aún no has detectado ninguna molécula. ¡Dibuja una!');
+    return;
+  }
+  const filas=[['Nombre','Fórmula','SMILES','Fecha'],...historial.map(h=>[
+    h.nombre||'Molécula',
+    h.formula||'—',
+    h.smiles||'',
+    h.fecha_hora||''
+  ])];
+  const csv=filas.map(fila=>fila.map(csvHistorialValor).join(',')).join('\r\n');
+  const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  const stamp=new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
+  a.href=url;
+  a.download=`historial_moleculas_${stamp}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function limpiarHistorial(){
+  historial=[];
+  guardarHistorial();
+  renderHistorial();
+}
+
+historial=leerHistorial();
+renderHistorial();
+
+function detectar(strokes){
+  const f=extraerF(strokes);
+  if(!f) return null;
+  return{features:f,ranking:DB.map(m=>({...m,puntaje:m.score(f)})).sort((a,b)=>b.puntaje-a.puntaje)};
+}
+
+const catalogoModal = document.getElementById('catalogo-modal');
+const catalogoSearch = document.getElementById('catalogo-search');
+const catalogoCount = document.getElementById('catalogo-count');
+
+function renderCatalogo(){
+  const grid = document.getElementById('catalogo-grid');
+  const query=(catalogoSearch.value||'').trim().toLocaleLowerCase('es');
+  const visibles=CATALOGO_DB.filter(mol=>{
+    if(!query) return true;
+    // Se busca por nombre en español y por el original, para que ambos sirvan.
+    return [mol.nombre,mol.nombre_es,mol.simbolo,mol.formula,mol.smiles,
+            mol.tipo,mol.tipo_es,mol.forma,mol.trazo,mol.uso]
+      .some(valor=>String(valor||'').toLocaleLowerCase('es').includes(query));
+  });
+  catalogoCount.textContent=`${visibles.length}/${CATALOGO_DB.length} · ${ELEMENTOS.length} elementos · ${DATASET_250.length} dataset · ${N_BASICAS} básicas`;
+  grid.innerHTML = '';
+  const fragment=document.createDocumentFragment();
+  visibles.forEach(mol=>{
+    const card = document.createElement('button');
+    card.className = 'catalogo-item'+(mol.es_elemento?' catalogo-elemento':'');
+    card.type = 'button';
+    const titulo = mol.nombre_es || mol.nombre;
+    // Si el nombre original difiere del traducido, se muestra debajo para no
+    // perder la referencia internacional.
+    const original = (mol.nombre && mol.nombre!==titulo)
+      ? `<div class="catalogo-nombre-en">${mol.nombre}</div>` : '';
+    const badge = mol.es_elemento ? '<span class="catalogo-badge-el">ELEMENTO</span>' : '';
+    card.innerHTML = `
+      <div class="catalogo-item-head">
+        <div class="catalogo-icon" style="background:${mol.color}22;border:1px solid ${mol.color}55;color:${mol.color};">${mol.icono}</div>
+        <div>
+          <div class="catalogo-nombre">${titulo}${badge}</div>
+          ${original}
+          <div class="catalogo-formula">${mol.formula}</div>
+        </div>
+      </div>
+      <div class="catalogo-tipo">${mol.tipo_es || mol.tipo}</div>
+      <div class="catalogo-smiles">${mol.smiles}</div>
+      ${mol.trazo?`<div class="catalogo-trazo"><b>${mol.forma}</b><br>${mol.trazo}</div>`:''}
+      ${mol.uso?`<div class="catalogo-uso"><b>¿Para qué sirve?</b><br>${mol.uso}</div>`:''}
+      ${mol.dato?`<div class="catalogo-uso"><b>Dato curioso:</b> ${mol.dato}</div>`:''}
+    `;
+    card.addEventListener('click',()=>{
+      catalogoModal.classList.add('hidden');
+      mostrarMolecula({...mol,puntaje:100},100,[]);
+    });
+    fragment.appendChild(card);
+  });
+  grid.appendChild(fragment);
+}
+
+document.getElementById('btn-catalogo').addEventListener('click',()=>{
+  catalogoSearch.value='';
+  renderCatalogo();
+  catalogoModal.classList.remove('hidden');
+});
+// Debounce: sin él, cada tecla redibujaba las 276 fichas del catálogo y se
+// notaban tirones al escribir. Se espera a que la persona deje de teclear.
+let catalogoDebounce=null;
+catalogoSearch.addEventListener('input',()=>{
+  clearTimeout(catalogoDebounce);
+  catalogoDebounce=setTimeout(renderCatalogo,140);
+});
+document.getElementById('catalogo-close').addEventListener('click',()=>catalogoModal.classList.add('hidden'));
+
+// ══════════════════════════════════════════════════════
+//  CACHÉ LOCAL PUBCHEM — clave: SMILES
+//  Estructura guardada:
+//    smiles → { imagen_2d: base64/dataURL, sdf: texto, propiedades: {...} }
+// ══════════════════════════════════════════════════════
+const PUBCHEM_CACHE_KEY = 'pinchdraw_pubchem_cache_v1';
+
+function smilesKey(smiles){
+  return (smiles || '').trim();
+}
+
+function leerPubChemCache(){
+  try{
+    return JSON.parse(localStorage.getItem(PUBCHEM_CACHE_KEY) || '{}');
+  }catch(e){
+    console.warn('Caché PubChem corrupta; se reiniciará.', e);
+    localStorage.removeItem(PUBCHEM_CACHE_KEY);
+    return {};
+  }
+}
+
+function obtenerPubChemCache(smiles){
+  const key = smilesKey(smiles);
+  if(!key) return null;
+  return leerPubChemCache()[key] || null;
+}
+
+function guardarPubChemCache(smiles, data){
+  const key = smilesKey(smiles);
+  if(!key || !data) return;
+  const cache = leerPubChemCache();
+  cache[key] = {
+    imagen_2d:    data.imagen_2d    || null,
+    sdf:          data.sdf          || null,
+    propiedades:  data.propiedades  || null,
+    guardado_en:  Date.now()
+  };
+
+  // Alias útil si PubChem devuelve un SMILES canónico distinto al del catálogo.
+  const canon = data.propiedades?.CanonicalSMILES;
+  if(canon && canon !== key) cache[canon] = cache[key];
+
+  try{
+    localStorage.setItem(PUBCHEM_CACHE_KEY, JSON.stringify(cache));
+  }catch(e){
+    console.warn('No se pudo guardar la caché PubChem (posible límite de localStorage).', e);
+  }
+}
+
+function limpiarPubChemCache(){
+  localStorage.removeItem(PUBCHEM_CACHE_KEY);
+  console.log('Caché PubChem limpiada.');
+}
+
+function blobToDataURL(blob){
+  return new Promise((resolve,reject)=>{
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.onerror   = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function fetchPC(n){
+  try{
+    const r=await fetch(`https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/${encodeURIComponent(n)}/property/MolecularFormula,MolecularWeight,IUPACName,CanonicalSMILES/JSON`);
+    if(!r.ok) return null;
+    return (await r.json()).PropertyTable?.Properties?.[0]||null;
+  }catch{return null;}
+}
+
+async function fetch3DSDF(n){
+  const r=await fetch(`https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/${encodeURIComponent(n)}/SDF?record_type=3d`);
+  if(!r.ok) throw new Error('Sin 3D');
+  return r.text();
+}
+
+const pcImg =(n)=>`https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/${encodeURIComponent(n)}/PNG?image_size=200x200`;
+const pcPage=(n)=>`https://pubchem.ncbi.nlm.nih.gov/compound/${encodeURIComponent(n)}`;
+
+async function fetchImg2DBase64(n){
+  const r = await fetch(pcImg(n));
+  if(!r.ok) throw new Error('Sin imagen 2D');
+  return await blobToDataURL(await r.blob());
+}
+
+async function obtenerPubChemMolecula(mol){
+  const key = smilesKey(mol.smiles);
+  const enCache = obtenerPubChemCache(key);
+  if(enCache) return {...enCache, desdeCache:true};
+
+  const nombre = mol.nombre_en || mol.nombre || key;
+  const [propiedades, sdfRes, imgRes] = await Promise.allSettled([
+    fetchPC(nombre),
+    fetch3DSDF(nombre),
+    fetchImg2DBase64(nombre)
+  ]);
+
+  const data = {
+    imagen_2d:   imgRes.status === 'fulfilled' ? imgRes.value : null,
+    sdf:         sdfRes.status === 'fulfilled' ? sdfRes.value : null,
+    propiedades: propiedades.status === 'fulfilled' ? propiedades.value : null
+  };
+
+  if(data.imagen_2d || data.sdf || data.propiedades) guardarPubChemCache(key, data);
+  return {...data, desdeCache:false};
+}
+
+document.getElementById('btn-cache').addEventListener('click',()=>{
+  limpiarPubChemCache();
+  alert('Caché local de PubChem limpiada. La próxima molécula volverá a descargarse.');
+});
+
+// ══════════════════════════════════════════════════════
+//  PREDICCIONES GNN
+// ══════════════════════════════════════════════════════
+// Ruta relativa a proposito: la pagina se sirve desde el mismo Flask. Con la
+// URL absoluta a localhost, abrir la app en http://127.0.0.1:5001 convertia
+// estas llamadas en cross-origin y el navegador las bloqueaba, dejando la app
+// sin predicciones ni reacciones de forma silenciosa.
+const GNN_URL = '/api/propiedades';
+let gnnOpen   = true;
+
+function toggleGNN(){
+  gnnOpen = !gnnOpen;
+  document.getElementById('gnn-body').style.display = gnnOpen ? '' : 'none';
+}
+
+async function predecirGNN(smiles){
+  const badge   = document.getElementById('gnn-badge');
+  const offline = document.getElementById('gnn-servidor-off');
+
+  badge.textContent = 'CARGANDO…';
+  badge.className   = 'cargando';
+  offline.style.display = 'none';
+
+  // Ocultar filas mientras carga
+  ['gnn-sol-row','gnn-tox-row','gnn-bbb-row','gnn-div1','gnn-div2']
+    .forEach(id => document.getElementById(id).style.display = 'none');
+
+  try {
+    const resp = await fetch(GNN_URL, {
+      method:  'POST',
+      headers: {'Content-Type':'application/json'},
+      body:    JSON.stringify({smiles})
+    });
+
+    if (!resp.ok) throw new Error('servidor error');
+    const data = await resp.json();
+
+    if (data.status !== 'success') throw new Error(data.message || 'sin datos');
+
+    mostrarResultadosGNN(data.propiedades || {});
+    badge.textContent = '✓ GNN';
+    badge.className   = 'ok';
+
+  } catch(e) {
+    // Servidor no disponible o predictor_gnn.py no encontrado
+    badge.textContent = 'NO DISPONIBLE';
+    badge.className   = 'error';
+    offline.style.display = 'block';
+    offline.textContent   = window.PINCHDRAW_QUIMICA_LISTA
+      ? '○ No se pudo predecir esta molécula: ' + (e.message || 'error desconocido')
+      : '○ El motor de química todavía se está cargando…';
+    console.log('GNN no disponible:', e.message);
+  }
+}
+
+function mostrarResultadosGNN(props){
+  // ── Solubilidad ──────────────────────────────────
+  const sol = props.solubilidad || {};
+  if (sol.log_s !== undefined){
+    document.getElementById('gnn-sol-row').style.display = '';
+    document.getElementById('gnn-div1').style.display    = '';
+
+    const logs = sol.log_s;
+    document.getElementById('gnn-logs').textContent     = logs.toFixed(3);
+    document.getElementById('gnn-sol-interp').textContent = sol.mensaje_nino || sol.interpretacion || '';
+    document.getElementById('gnn-sol-mol').textContent  = sol.sol_mol_l ? '≈ '+sol.sol_mol_l : '';
+
+    // Barra: rango logS de -8 (insoluble) a +2 (muy soluble)
+    const pct = Math.min(100, Math.max(0, (logs + 8) / 10 * 100));
+    const bar = document.getElementById('gnn-logs-bar');
+    bar.style.width      = pct + '%';
+    bar.style.background = logs >= -1 ? '#06d6a0' : logs >= -3 ? '#ffbe0b' : '#ef233c';
+  }
+
+  // ── Toxicidad ────────────────────────────────────
+  const tox = props.toxicidad || {};
+  if (tox.probabilidad_global !== undefined){
+    document.getElementById('gnn-tox-row').style.display = '';
+    document.getElementById('gnn-div2').style.display    = '';
+
+    const prob = tox.probabilidad_global;
+    const pct  = Math.round(prob * 100);
+    const tag  = document.getElementById('gnn-tox-tag');
+    tag.textContent = (tox.prediccion || '—') + '  ' + pct + '%';
+    tag.className   = 'gnn-pred-tag ' + (prob > 0.6 ? 'bad' : prob > 0.35 ? 'warn' : 'ok');
+
+    const bar = document.getElementById('gnn-tox-bar');
+    bar.style.width      = pct + '%';
+    bar.style.background = prob > 0.6 ? '#ef233c' : prob > 0.35 ? '#ffbe0b' : '#06d6a0';
+
+    const mayor = tox.ensayo_mayor_riesgo;
+    const probM = tox.prob_mayor_riesgo;
+    document.getElementById('gnn-tox-detail').textContent =
+      tox.mensaje_nino || (mayor ? `Mayor riesgo: ${mayor} (${(probM*100).toFixed(0)}%)` : '');
+  }
+
+  // ── BBBP ────────────────────────────────────────
+  const bbb = props.bbbp || {};
+  if (bbb.probabilidad !== undefined){
+    document.getElementById('gnn-bbb-row').style.display = '';
+
+    const prob = bbb.probabilidad;
+    const pct  = Math.round(prob * 100);
+    const tag  = document.getElementById('gnn-bbb-tag');
+    tag.textContent = (bbb.prediccion || '—') + '  ' + pct + '%';
+    tag.className   = 'gnn-pred-tag ' + (prob > 0.5 ? 'ok' : 'warn');
+
+    const bar = document.getElementById('gnn-bbb-bar');
+    bar.style.width      = pct + '%';
+    bar.style.background = prob > 0.5 ? '#06d6a0' : '#ffbe0b';
+
+    document.getElementById('gnn-bbb-detail').textContent = bbb.mensaje_nino || bbb.interpretacion || '';
+  }
+}
+
+
+let viewer3d=null;
+let spin3d=true;
+let style3d='stick';
+
+function applyStyle3d(estilo){
+  if(!viewer3d) return;
+  try{ if(viewer3d.removeAllSurfaces) viewer3d.removeAllSurfaces(); }catch(e){}
+  viewer3d.setStyle({},{});
+  const jmol={colorscheme:'Jmol'};
+  if(estilo==='stick')    viewer3d.setStyle({},{stick:{...jmol,radius:0.12},sphere:{...jmol,scale:0.28}});
+  if(estilo==='sphere')   viewer3d.setStyle({},{sphere:jmol});
+  if(estilo==='surface')  {viewer3d.setStyle({},{stick:{...jmol,radius:0.10}});viewer3d.addSurface($3Dmol.VDW,{opacity:0.65,colorscheme:'Jmol'});}
+  if(estilo==='wireframe')viewer3d.setStyle({},{line:{...jmol,linewidth:1.5}});
+  viewer3d.render();
+}
+
+function set3dStyle(estilo){
+  style3d=estilo;
+  document.querySelectorAll('.d3btn[id^="d3-"]').forEach(b=>b.classList.remove('active'));
+  const btn=document.getElementById('d3-'+estilo);
+  if(btn) btn.classList.add('active');
+  applyStyle3d(estilo);
+}
+
+function toggle3dSpin(){
+  spin3d=!spin3d;
+  if(viewer3d) viewer3d.spin(spin3d);
+  document.getElementById('d3-spin').classList.toggle('active',spin3d);
+}
+
+async function cargar3D(nombre_en, sdfCache=null){
+  const container=document.getElementById('mol-3d-viewer');
+  const status   =document.getElementById('mol-3d-status');
+  status.textContent=sdfCache ? 'Cargando estructura 3D desde caché local…' : 'Cargando estructura 3D desde PubChem…';
+  status.style.display='flex';
+
+  try{
+    const sdf = sdfCache || await fetch3DSDF(nombre_en);
+
+    // Reutilizar el mismo viewer evita destruir el canvas WebGL y reduce parpadeos.
+    if(!viewer3d){
+      viewer3d=$3Dmol.createViewer(container,{backgroundColor:'0x080810',antialias:true});
+    }else{
+      try{
+        viewer3d.clear();
+        if(viewer3d.removeAllSurfaces) viewer3d.removeAllSurfaces();
+      }catch(e){
+        console.warn('No se pudo limpiar viewer 3D; se reutilizará de todos modos.', e);
+      }
+    }
+
+    viewer3d.addModel(sdf,'sdf');
+    applyStyle3d(style3d);
+    viewer3d.zoomTo();
+    viewer3d.spin(spin3d);
+    viewer3d.render();
+    status.style.display='none';
+
+  }catch(e){
+    status.textContent='⚠ Estructura 3D no disponible para esta molécula en PubChem.';
+    console.log('3D error:',e);
+  }
+}
+
+const modal=document.getElementById('mol-modal');
+document.getElementById('mol-close').addEventListener('click',()=>modal.classList.add('hidden'));
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){
+    modal.classList.add('hidden');
+    catalogoModal.classList.add('hidden');
+    reaccionModal.classList.add('hidden');
+    if(historialPanel) historialPanel.classList.remove('open');
+    document.getElementById('guia-panel')?.classList.remove('open');
+  }
+});
+
+async function mostrarMolecula(mol,conf,alts,opciones={}){
+  molActualModal = mol;   // referencia para los botones "Usar como Reactivo"
+  // Historial educativo: cada molécula abierta por detección/catálogo queda disponible tras recargar.
+  if(!opciones.desdeHistorial) registrarHistorial(mol);
+  // ── Advertencia si se abre desde file:// (sin servidor) ──
+  if(location.protocol==='file:'){
+    document.getElementById('mol-3d-status').textContent=
+      '⚠ Abre con lanzador_draw.py para activar el visor 3D y PubChem.';
+  }
+  const ic=document.getElementById('mol-icon');
+  ic.style.background=mol.color+'22'; ic.style.border=`1px solid ${mol.color}55`;
+  ic.textContent=mol.icono;
+  const mn=document.getElementById('mol-nombre');
+  mn.textContent=mol.nombre_es || mol.nombre; mn.style.color=mol.color;
+  document.getElementById('mol-formula-display').textContent=mol.formula;
+  document.getElementById('mol-tipo-display').textContent=mol.tipo_es || mol.tipo;
+  // Descripción + para qué sirve + dato curioso, en un solo bloque legible.
+  const partes=[mol.descripcion];
+  if(mol.uso)  partes.push('¿Para qué sirve? '+mol.uso);
+  if(mol.dato) partes.push('Dato curioso: '+mol.dato);
+  if(mol.nombre && mol.nombre!==(mol.nombre_es||mol.nombre)){
+    partes.push('Nombre internacional: '+mol.nombre);
+  }
+  document.getElementById('mol-desc').textContent=partes.filter(Boolean).join('\n\n');
+  document.getElementById('mol-smiles').textContent=mol.smiles;
+  document.getElementById('mol-peso').textContent=mol.peso;
+  document.getElementById('mol-iupac').textContent='Cargando…';
+
+  const img=document.getElementById('mol-img'),fb=document.getElementById('mol-img-fallback');
+  img.style.display='none'; fb.style.display='block';
+  fb.textContent='Cargando imagen…';
+  img.onerror=()=>{img.style.display='none';fb.style.display='block';fb.textContent='Sin imagen';};
+
+  const pubchemPromise = obtenerPubChemMolecula(mol);
+  pubchemPromise.then(pc=>{
+    if(pc.imagen_2d){
+      img.src=pc.imagen_2d;
+      img.style.display='block';
+      fb.style.display='none';
+    }else{
+      img.src=pcImg(mol.nombre_en);
+      img.style.display='block';
+      fb.style.display='none';
+    }
+
+    const props = pc.propiedades;
+    if(props){
+      if(props.MolecularWeight) document.getElementById('mol-peso').textContent=props.MolecularWeight+' g/mol';
+      if(props.CanonicalSMILES) document.getElementById('mol-smiles').textContent=props.CanonicalSMILES;
+      if(props.IUPACName)       document.getElementById('mol-iupac').textContent=props.IUPACName;
+    }else{
+      document.getElementById('mol-iupac').textContent='(sin datos en línea)';
+    }
+
+    cargar3D(mol.nombre_en, pc.sdf);
+  }).catch(e=>{
+    console.warn('PubChem no disponible:', e);
+    img.src=pcImg(mol.nombre_en);
+    img.style.display='block'; fb.style.display='none';
+    document.getElementById('mol-iupac').textContent='(sin datos en línea)';
+    cargar3D(mol.nombre_en);
+  });
+
+  const pct=Math.min(100,Math.round(conf));
+  const bar=document.getElementById('confianza-bar');
+  bar.style.width=pct+'%';
+  bar.style.background=pct>70?'#06d6a0':pct>45?'#ffbe0b':'#ef233c';
+  document.getElementById('confianza-pct').textContent=pct+'%';
+
+  document.getElementById('pubchem-link').href=pcPage(mol.nombre_en);
+  document.getElementById('pubchem-link').textContent=`Ver ${mol.nombre} en PubChem →`;
+
+  // Limpiar solo los botones de alternativas (sin tocar el label)
+  document.querySelectorAll('.alt-btn').forEach(b=>b.remove());
+  const ar=document.getElementById('mol-alts-row');
+  alts.forEach(a=>{
+    const b=document.createElement('button'); b.className='alt-btn';
+    b.textContent=a.icono+' '+a.nombre; b.style.borderColor=a.color+'66';
+    b.addEventListener('click',()=>mostrarMolecula(a,a.puntaje,[]));
+    ar.appendChild(b);
+  });
+
+  modal.classList.remove('hidden');
+
+  // ── Predicciones GNN (si el servidor está activo) ──
+  // Los elementos sueltos NO se envían a la GNN: la red está entrenada con
+  // moléculas orgánicas y sus salidas para un átomo aislado (sobre todo un
+  // metal) no tendrían sentido químico. Se muestra el aviso en su lugar.
+  if(mol.es_elemento){
+    const badge=document.getElementById('gnn-badge');
+    const offline=document.getElementById('gnn-servidor-off');
+    badge.textContent='NO APLICA';
+    badge.className='';
+    ['gnn-sol-row','gnn-tox-row','gnn-bbb-row','gnn-div1','gnn-div2']
+      .forEach(id=>{const el=document.getElementById(id); if(el) el.style.display='none';});
+    offline.style.display='block';
+    offline.textContent='Las predicciones son para moléculas, no para átomos individuales. Aquí se muestran los datos reales del elemento.';
+  }else{
+    predecirGNN(mol.smiles);
+  }
+}
+
+// ══════════════════════════════════════════════════════
+//  SIMULACIÓN DE REACCIÓN (RDKit en el backend)
+// ══════════════════════════════════════════════════════
+const REACCION_URL          = '/api/reaccion';
+const REACCIONES_LISTA_URL  = '/api/reacciones-disponibles';
+
+let molActualModal = null;          // molécula que se ve en #mol-modal en este momento
+const reactivoSlots = {1: null, 2: null};   // {smiles, nombre, icono, color}
+let catalogoReacciones = [];        // se llena desde el backend
+
+const REACCIONES_VISUALES = [
+  {
+    nombre:'Esterificación',
+    ecuacion:'Ácido acético + Etanol → Acetato de etilo + Agua',
+    smiles1:'CC(=O)O',
+    smiles2:'CCO',
+    tipoBackend:'esterificacion',
+    descripcion:'Reacción real disponible en RDKit dentro del programa. Útil para mostrar formación de ésteres con olor frutal.',
+    productos:['CCOC(C)=O','O']
+  },
+  {
+    nombre:'Hidrólisis de éster',
+    ecuacion:'Acetato de etilo + Agua → Ácido acético + Etanol',
+    smiles1:'CCOC(C)=O',
+    smiles2:'O',
+    tipoBackend:'hidrolisis_ester',
+    descripcion:'Reacción inversa de la esterificación. Sirve para explicar ruptura del enlace éster por acción del agua.',
+    productos:['CC(=O)O','CCO']
+  },
+  {
+    nombre:'Oxidación de alcohol',
+    ecuacion:'Etanol + [Ox] → Acetaldehído',
+    smiles1:'CCO',
+    smiles2:'',
+    tipoBackend:'oxidacion_alcohol',
+    descripcion:'Reacción de un solo reactante disponible en el backend. El oxidante se considera implícito.',
+    productos:['CC=O']
+  },
+  {
+    nombre:'Neutralización',
+    ecuacion:'HCl + NaOH → NaCl + H₂O',
+    smiles1:'Cl',
+    smiles2:'[Na+].[OH-]',
+    tipoBackend:null,
+    descripcion:'Vista educativa: ácido fuerte + base fuerte producen sal y agua. No se simula con SMARTS en esta versión.',
+    productos:['[Na+].[Cl-]','O']
+  },
+  {
+    nombre:'Combustión',
+    ecuacion:'CH₄ + O₂ → CO₂ + H₂O',
+    smiles1:'C',
+    smiles2:'O=O',
+    tipoBackend:null,
+    descripcion:'Vista educativa: oxidación completa de un alcano. Requiere balance estequiométrico, por eso se muestra visualmente.',
+    productos:['O=C=O','O']
+  }
+];
+
+function renderReaccionesVisuales(){
+  const grid = document.getElementById('reacciones-visuales-grid');
+  grid.innerHTML = '';
+  REACCIONES_VISUALES.forEach(rx=>{
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'rx-visual-btn';
+    b.textContent = rx.nombre;
+    b.title = rx.ecuacion;
+    b.addEventListener('click',()=>seleccionarReaccionVisual(rx));
+    grid.appendChild(b);
+  });
+}
+
+function mostrarReaccionVisual(rx){
+  const cont = document.getElementById('reaccion-resultado');
+  cont.classList.add('show');
+  const productos = rx.productos.map(s=>`<span class="alt-btn" style="display:inline-block;margin:3px 4px;">${s}</span>`).join('');
+  cont.innerHTML = `
+    <div id="reaccion-nombre-tipo">ⓘ ${rx.nombre}</div>
+    <div id="reaccion-descripcion">${rx.ecuacion}</div>
+    <div id="reaccion-explicacion">${rx.descripcion}</div>
+    <div class="reaccion-msg-info">Productos visuales sugeridos: ${productos}</div>
+  `;
+}
+
+// ── Variable global: reacción visual actualmente seleccionada ──
+let selectedVisualRx = null;
+
+// Limpia la selección visual cuando el usuario cambia el dropdown manualmente
+document.getElementById('reaccion-tipo').addEventListener('change', ()=>{
+  selectedVisualRx = null;
+  actualizarHintGrupos();
+});
+
+function seleccionarReaccionVisual(rx){
+  selectedVisualRx = rx;                                    // ← guardar referencia
+  document.getElementById('input-r1').value = rx.smiles1 || '';
+  document.getElementById('input-r2').value = rx.smiles2 || '';
+
+  if(rx.tipoBackend){
+    const select = document.getElementById('reaccion-tipo');
+    if([...select.options].some(opt=>opt.value===rx.tipoBackend)){
+      select.value = rx.tipoBackend;
+      actualizarHintGrupos();
+    }
+  } else {
+    // Para reacciones visuales, actualizar el hint sin cambiar el dropdown
+    const hint = document.getElementById('reaccion-grupos-hint');
+    if(hint) hint.textContent = `Vista educativa — ${rx.descripcion}`;
+    document.getElementById('input-r2').closest('.reaccion-input-row').style.opacity='1';
+  }
+  mostrarReaccionVisual(rx);
+}
+
+// ── Mapa SMILES → fórmula legible ────────────────────────────
+const SMILES_FORMULA = {
+  'O=C=O':'CO₂','O':'H₂O','N':'NH₃','C':'CH₄','CC':'C₂H₆','CCC':'C₃H₈',
+  'O=O':'O₂','[H][H]':'H₂','N#N':'N₂','[Na+].[Cl-]':'NaCl','[Na+].[OH-]':'NaOH',
+  'CC=O':'CH₃CHO','CCO':'C₂H₅OH','CC(=O)[O-].[Na+]':'CH₃COONa',
+  'CC(=O)O':'CH₃COOH','CC(=O)OCC':'CH₃COOC₂H₅',
+};
+const SMILES_EMOJI = {
+  'O=C=O':'🌬️','O':'💧','N':'🌿','C':'🔥','O=O':'💨',
+  '[H][H]':'⚡','N#N':'🌫️','[Na+].[Cl-]':'🧂','CCO':'🍷',
+};
+function fmtSmiles(s){ return SMILES_FORMULA[s]||s; }
+function emojiSmiles(s){ return SMILES_EMOJI[s]||'⚗️'; }
+
+// ── Mensajes educativos para niños por reacción ──────────────
+const MSG_EDUCATIVOS = {
+  'Combustión':'¡El calor de esta reacción mueve coches, cocina alimentos y genera electricidad! El CO₂ que produce contribuye al calentamiento del planeta. Por eso es importante buscar energías limpias.',
+  'Neutralización':'¡Así funcionan los antiácidos! Cuando te duele el estómago por exceso de ácido, tomas una pastilla alcalina que lo "neutraliza". ¡El pH vuelve a 7!',
+};
+
+// ── Mostrar resultado para reacciones SIN backend ────────────
+function mostrarResultadoVisual(rx){
+  const cont = document.getElementById('reaccion-resultado');
+  cont.classList.add('show');
+
+  const productosHtml = rx.productos.map(s=>`
+    <div class="reaccion-producto-card" style="text-align:center;cursor:pointer;"
+         title="SMILES: ${s}" onclick="navigator.clipboard&&navigator.clipboard.writeText('${s}')">
+      <div style="font-size:26px;margin-bottom:6px;">${emojiSmiles(s)}</div>
+      <div class="reaccion-producto-smiles">${s}</div>
+      <div class="reaccion-producto-formula">${fmtSmiles(s)}</div>
+    </div>`).join('');
+
+  const msgExtra = MSG_EDUCATIVOS[rx.nombre] || rx.descripcion;
+
+  cont.innerHTML = `
+    <div id="reaccion-nombre-tipo">🧪 ${rx.nombre}
+      <span style="font-size:9px;color:#555;margin-left:8px;">VISTA EDUCATIVA</span>
+    </div>
+    <div id="reaccion-descripcion">${rx.ecuacion}</div>
+    <div id="reaccion-explicacion">${rx.descripcion}</div>
+    <div id="reaccion-productos">${productosHtml}</div>
+    <div class="reaccion-msg-info" style="margin-top:8px;">💡 ${msgExtra}</div>
+    <div class="reaccion-msg-info" style="color:#3a5a2a;margin-top:4px;font-size:9px;">
+      ℹ Esta reacción requiere balance estequiométrico — se muestra como vista educativa.
+      Haz clic en un producto para copiar su SMILES.
+    </div>`;
+
+  // ── Cargar estructuras 3D lado a lado ──────────────────
+  const condiciones = {
+    'Combustión':'Calor / O₂','Neutralización':'H₂O',
+  };
+  const cond = condiciones[rx.nombre] || 'condiciones';
+  const reactants = [rx.smiles1, rx.smiles2].filter(Boolean);
+  cargar3DReaccion(reactants, rx.productos, cond);
+}
+
+function actualizarChip(slot){
+  const chip = document.getElementById(`chip-reactivo-${slot}`);
+  const r = reactivoSlots[slot];
+  if(r){
+    chip.textContent = `R${slot}: ${r.icono||'⚛'} ${r.nombre}`;
+    chip.classList.add('lleno');
+  } else {
+    chip.textContent = `R${slot}: —`;
+    chip.classList.remove('lleno');
+  }
+}
+
+function fijarReactivo(slot){
+  if(!molActualModal) return;
+  const smilesMostrado = document.getElementById('mol-smiles').textContent.trim();
+  reactivoSlots[slot] = {
+    smiles: smilesMostrado && smilesMostrado !== '—' ? smilesMostrado : molActualModal.smiles,
+    nombre: molActualModal.nombre,
+    icono:  molActualModal.icono,
+    color:  molActualModal.color,
+  };
+  actualizarChip(slot);
+  document.getElementById(`btn-set-r${slot}`).classList.add('activo');
+  setTimeout(()=>document.getElementById(`btn-set-r${slot}`).classList.remove('activo'), 600);
+}
+
+document.getElementById('btn-set-r1').addEventListener('click', ()=>fijarReactivo(1));
+document.getElementById('btn-set-r2').addEventListener('click', ()=>fijarReactivo(2));
+
+async function cargarCatalogoReacciones(){
+  const select = document.getElementById('reaccion-tipo');
+  try{
+    const r = await fetch(REACCIONES_LISTA_URL);
+    const data = await r.json();
+    if(data.status === 'success' && data.reacciones.length){
+      catalogoReacciones = data.reacciones;
+      select.innerHTML = '';
+      data.reacciones.forEach(rx=>{
+        const opt = document.createElement('option');
+        opt.value = rx.id;
+        opt.textContent = `${rx.nombre} (${rx.descripcion})`;
+        select.appendChild(opt);
+      });
+      actualizarHintGrupos();
+    }
+  }catch(e){
+    console.log('No se pudo cargar el catálogo de reacciones (servidor offline):', e.message);
+    // Se deja la opción por defecto que ya está en el HTML (esterificación).
+  }
+}
+
+function actualizarHintGrupos(){
+  const tipo = document.getElementById('reaccion-tipo').value;
+  const rx = catalogoReacciones.find(r=>r.id===tipo);
+  const hint = document.getElementById('reaccion-grupos-hint');
+  const input2row = document.getElementById('input-r2').closest('.reaccion-input-row');
+  if(rx){
+    hint.textContent = rx.num_reactantes===2
+      ? `Necesita: ${rx.grupos_requeridos.join(' + ')}`
+      : `Necesita solo 1 reactante: ${rx.grupos_requeridos.join(', ')} (el reactante 2 se ignora)`;
+    input2row.style.opacity = rx.num_reactantes===2 ? '1' : '0.4';
+  } else {
+    hint.textContent = '';
+    input2row.style.opacity = '1';
+  }
+}
+document.getElementById('reaccion-tipo').addEventListener('change', actualizarHintGrupos);
+renderReaccionesVisuales();
+
+const reaccionModal = document.getElementById('reaccion-modal');
+
+function abrirReaccionModal(){
+  if(reactivoSlots[1]) document.getElementById('input-r1').value = reactivoSlots[1].smiles;
+  if(reactivoSlots[2]) document.getElementById('input-r2').value = reactivoSlots[2].smiles;
+  document.getElementById('reaccion-resultado').classList.remove('show');
+  document.getElementById('reaccion-resultado').innerHTML = '';
+  reaccionModal.classList.remove('hidden');
+}
+document.getElementById('btn-reaccion').addEventListener('click', abrirReaccionModal);
+document.getElementById('reaccion-close').addEventListener('click', ()=>reaccionModal.classList.add('hidden'));
+
+function tarjetaProducto(p){
+  const advertencia = p.advertencia ? `<div class="reaccion-producto-warn">⚠ ${p.advertencia}</div>` : '';
+  // imagen_2d llega ya como data-URI (SVG generado por RDKit.js). Se acepta
+  // también el base64 PNG que devolvía el backend Python, por compatibilidad.
+  const src = p.imagen_2d
+    ? (p.imagen_2d.startsWith('data:') ? p.imagen_2d : 'data:image/png;base64,' + p.imagen_2d)
+    : null;
+  const img = src
+    ? `<img src="${src}" alt="${p.smiles}">`
+    : `<div style="font-size:9px;color:#444;padding:20px 0;">(sin imagen 2D)</div>`;
+  return `
+    <div class="reaccion-producto-card">
+      ${img}
+      <div class="reaccion-producto-smiles">${p.smiles}</div>
+      <div class="reaccion-producto-formula">${p.formula||''}</div>
+      ${advertencia}
+    </div>`;
+}
+
+function mostrarResultadoReaccion(data, reactants=[]){
+  const cont = document.getElementById('reaccion-resultado');
+  cont.classList.add('show');
+
+  if(data.status === 'success'){
+    const productosHtml = data.productos_principales.map(tarjetaProducto).join('');
+    let altHtml = '';
+    if(data.num_posibilidades > 1){
+      altHtml = `<div id="reaccion-alt-toggle" style="display:block;">
+        ⓘ Se encontraron ${data.num_posibilidades} posibilidades de reacción — se muestra la primera.
+      </div>`;
+    }
+    cont.innerHTML = `
+      <div id="reaccion-nombre-tipo">✓ ${data.tipo_reaccion}</div>
+      <div id="reaccion-descripcion">${data.descripcion}</div>
+      <div id="reaccion-explicacion">${data.mensaje_educativo}</div>
+      <div id="reaccion-productos">${productosHtml}</div>
+      ${altHtml}
+    `;
+    // ── Cargar 3D para reacciones RDKit exitosas ──────────
+    const productos3d = (data.productos_principales||[]).map(p=>p.smiles).filter(Boolean);
+    cargar3DReaccion(reactants.filter(Boolean), productos3d, data.tipo_reaccion||'→');
+  } else if(data.status === 'no_reaccion'){
+    cont.innerHTML = `
+      <div class="reaccion-msg-error">✗ ${data.message}</div>
+      <div class="reaccion-msg-info">Grupos funcionales esperados: ${(data.grupos_requeridos||[]).join(' + ')}</div>
+    `;
+    document.getElementById('rx-3d-section').style.display='none';
+  } else if(data.status === 'unavailable'){
+    cont.innerHTML = `<div class="reaccion-msg-error">⚠ ${data.message}</div>`;
+    document.getElementById('rx-3d-section').style.display='none';
+  } else {
+    cont.innerHTML = `<div class="reaccion-msg-error">✗ ${data.message || 'Error desconocido al simular la reacción.'}</div>`;
+    document.getElementById('rx-3d-section').style.display='none';
+  }
+}
+
+async function simularReaccionUI(){
+  const smiles1 = document.getElementById('input-r1').value.trim();
+  const smiles2 = document.getElementById('input-r2').value.trim();
+  const tipo    = document.getElementById('reaccion-tipo').value;
+  const btn     = document.getElementById('btn-simular');
+
+  if(!smiles1){
+    alert('Escribe al menos el SMILES del Reactante 1 (o usa "⚗ Usar como Reactivo 1" desde una molécula detectada).');
+    return;
+  }
+
+  // ── Reacción visual sin backend: mostrar resultado educativo ──
+  if(selectedVisualRx && !selectedVisualRx.tipoBackend){
+    mostrarResultadoVisual(selectedVisualRx);
+    return;
+  }
+
+  // ── Reacción con backend RDKit ────────────────────────────────
+  btn.disabled = true; btn.textContent = '⏳ SIMULANDO…';
+  try{
+    const resp = await fetch(REACCION_URL, {
+      method:  'POST',
+      headers: {'Content-Type':'application/json'},
+      body:    JSON.stringify({smiles1, smiles2, tipo_reaccion: tipo})
+    });
+    const data = await resp.json();
+    mostrarResultadoReaccion(data, [smiles1, smiles2]);   // ← pasa reactantes
+  }catch(e){
+    mostrarResultadoReaccion({
+      status: 'error',
+      message: 'No se pudo simular la reacción (' + e.message + ').'
+        + (window.PINCHDRAW_QUIMICA_LISTA ? '' : ' El motor de química todavía se está cargando; espera unos segundos.')
+    }, []);
+  }finally{
+    btn.disabled = false; btn.textContent = '▶ SIMULAR REACCIÓN';
+  }
+}
+document.getElementById('btn-simular').addEventListener('click', simularReaccionUI);
+
+cargarCatalogoReacciones();
+
+new p5(p=>{
+  const CORE='rgba(255,255,255,0.92)',SOFT='rgba(255,255,255,0.10)';
+  const CH=[60,80,100],CHA=[160,185,210];
+  let dc=null,vc=null,strokes=[],cur=null,wasD=false,corrT=0;
+  let cambio=true,resultadoDeteccionCache=null,ultimaMano=null;
+
+  // Caché independiente para el feedback visual en vivo.
+  // No usa todo el dibujo: evalúa el trazo activo; si no existe, evalúa el último trazo guardado.
+  let feedbackFirma='',feedbackCache=null;
+  const UMBRAL_MOV_MANO=3;
+  const UMBRAL_FEEDBACK=40;
+  const btnA=document.getElementById('btn-analizar');
+  const btnBorrarPunto=document.getElementById('btn-borrar-punto');
+  const btnExport=document.getElementById('btn-export');
+
+  function lm2c(lm){return{x:p.width-lm.x*p.width,y:lm.y*p.height};}
+
+  function drawSkel(lm,dr){
+    const col=dr?CHA:CH,al=dr?180:90;
+    CONNECTIONS.forEach(([a,b])=>{const pa=lm2c(lm[a]),pb=lm2c(lm[b]);p.stroke(col[0],col[1],col[2],al);p.strokeWeight(1.2);p.line(pa.x,pa.y,pb.x,pb.y);});
+    lm.forEach((lk,i)=>{const pos=lm2c(lk),tip=TIPS.includes(i);p.fill(col[0],col[1],col[2],al+40);p.noStroke();p.circle(pos.x,pos.y,tip?9:5);});
+  }
+
+  function drawPinch(x,y){p.noFill();p.stroke(255,255,255,180);p.strokeWeight(1.5);p.circle(x,y,24);p.fill(255);p.noStroke();p.circle(x,y,7);}
+
+  function marcarCambio(){
+    cambio=true;
+    resultadoDeteccionCache=null;
+    feedbackFirma='';
+    feedbackCache=null;
+  }
+
+  function manoSeMovio(x,y){
+    if(!ultimaMano){ultimaMano={x,y};return true;}
+    const d=Math.hypot(x-ultimaMano.x,y-ultimaMano.y);
+    if(d>UMBRAL_MOV_MANO){ultimaMano={x,y};return true;}
+    return false;
+  }
+
+  function detectarSiCambio(){
+    if(!strokes.length) return null;
+    if(!cambio && resultadoDeteccionCache) return resultadoDeteccionCache;
+    resultadoDeteccionCache=detectar(strokes);
+    cambio=false;
+    return resultadoDeteccionCache;
+  }
+
+  function normalizarConfianza(puntaje){
+    return Math.max(0,Math.min(100,Math.round(Number(puntaje)||0)));
+  }
+
+  function etiquetaForma(mol){
+    // Etiqueta corta para que el feedback diga algo como "Agua (V)".
+    const formas={
+      agua:'V', co2:'línea', metano:'cruz', benzeno:'hexágono', ciclopentano:'pentágono',
+      ciclopropano:'triángulo', amoniaco:'tridente', etanol:'zig-zag', acido_acetico:'Y',
+      acetona:'T', acetato_etilo:'zig-zag + rama', aspirina:'anillo + cola',
+      eteno:'línea corta', etino:'línea recta', metanol:'trazo corto',
+      propano:'zig-zag corto', propanol:'zig-zag largo', acido_formico:'gancho',
+      acetaldehido:'codo corto', glucosa:'anillo + ramas'
+    };
+    return formas[mol.id] || mol.icono || mol.formula || '';
+  }
+
+  function actualizarTextoFeedback(res){
+    if(!liveDetection) return;
+    if(!res||!res.ranking||!res.ranking.length){
+      liveDetection.textContent='No reconocido aún – sigue dibujando';
+      liveDetection.className='wait';
+      return;
+    }
+    const top=res.ranking[0];
+    const conf=normalizarConfianza(top.puntaje);
+    if(conf<UMBRAL_FEEDBACK){
+      liveDetection.textContent='No reconocido aún – sigue dibujando';
+      liveDetection.className='wait';
+      return;
+    }
+    liveDetection.textContent=`Parece: ${top.nombre} (${etiquetaForma(top)}) – ${conf}% confianza`;
+    liveDetection.className=conf>70?'ok':'warn';
+  }
+
+  function trazoActivoParaFeedback(){
+    let pts=null;
+
+    if(cur){
+      // Compatibilidad con versiones donde el trazo activo se llame cur.pts.
+      if(Array.isArray(cur.pts)&&cur.pts.length>=2) pts=cur.pts;
+      else if(Array.isArray(cur.sm)&&cur.sm.length>=2) pts=rdp(cur.sm,parseInt(epsSlider.value));
+      else if(Array.isArray(cur.raw)&&cur.raw.length>=2) pts=rdp(cur.raw,parseInt(epsSlider.value));
+    }else if(strokes.length){
+      pts=strokes[strokes.length-1].pts;
+    }
+
+    return pts&&pts.length>=2?[{pts}]:null;
+  }
+
+  function firmaTrazo(st){
+    const pts=st?.[0]?.pts||[];
+    if(!pts.length) return '';
+    const a=pts[0],b=pts[pts.length-1],m=pts[Math.floor(pts.length/2)];
+    return `${pts.length}|${Math.round(a.x)},${Math.round(a.y)}|${Math.round(m.x)},${Math.round(m.y)}|${Math.round(b.x)},${Math.round(b.y)}`;
+  }
+
+  // El feedback en vivo se limita a ~12 veces por segundo en lugar de 60.
+  // Cada pasada simplifica el trazo (rdp) y puntúa las plantillas, así que
+  // hacerlo en cada frame era el mayor consumo de CPU del bucle. A 12 Hz el
+  // texto sigue sintiéndose inmediato para el ojo. forzar=true lo salta.
+  let ultimoFeedbackTs=0;
+  const FEEDBACK_MS=80;
+
+  function actualizarFeedbackEnVivo(forzar=false){
+    if(!forzar){
+      const ahora=performance.now();
+      if(ahora-ultimoFeedbackTs<FEEDBACK_MS) return feedbackCache;
+      ultimoFeedbackTs=ahora;
+    }
+    const st=trazoActivoParaFeedback();
+    if(!st){
+      feedbackFirma='';
+      feedbackCache=null;
+      actualizarTextoFeedback(null);
+      return null;
+    }
+    const firma=firmaTrazo(st);
+    if(!forzar&&(!cambio||firma===feedbackFirma)&&feedbackCache){
+      actualizarTextoFeedback(feedbackCache);
+      return feedbackCache;
+    }
+    feedbackFirma=firma;
+    feedbackCache=detectar(st);
+    actualizarTextoFeedback(feedbackCache);
+    return feedbackCache;
+  }
+
+  function addPt(x,y){
+    if(!cur) return;
+    cur.raw.push({x,y});
+    const sm=sP({x,y}),sp=cur.sm;
+    if(!sp.length||Math.hypot(sm.x-sp[sp.length-1].x,sm.y-sp[sp.length-1].y)>2){sp.push(sm);marcarCambio();}
+    if(sp.length<2) return;
+    const ctx=dc.drawingContext,n=sp.length,p1=sp[n-2],p2=sp[n-1];
+    ctx.shadowBlur=0;ctx.lineCap='round';ctx.lineJoin='round';
+    ctx.strokeStyle=SOFT;ctx.lineWidth=10;ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);ctx.stroke();
+    ctx.strokeStyle=CORE;ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);ctx.stroke();
+  }
+
+  function redrawAll(incluirCur=false){
+    dc.clear();
+    const ctx=dc.drawingContext;ctx.shadowBlur=0;
+    strokes.forEach(s=>{if(s.pts.length<2) return;spline(ctx,s.pts,SOFT,10);spline(ctx,s.pts,CORE,2.5);});
+
+    // Permite redibujar el trazo activo cuando se borra su último punto.
+    if(incluirCur&&cur&&cur.sm&&cur.sm.length>=2){
+      spline(ctx,cur.sm,SOFT,10);
+      spline(ctx,cur.sm,CORE,2.5);
+    }
+
+    btnA.disabled=strokes.length===0;
+  }
+
+  function finalize(){
+    if(!cur||cur.raw.length<2) return;
+    strokes.push({pts:rdp(cur.raw,parseInt(epsSlider.value))});
+    cur=null;rS();marcarCambio();redrawAll();
+    actualizarFeedbackEnVivo(true);
+    stateBadge.textContent='✓ CORREGIDO';stateBadge.className='corrected';corrT=50;
+  }
+
+  function exportarDibujoPNG(){
+    // Exporta solo la capa de dibujo (dc), sin cámara, cuadrícula, manos ni botones.
+    if(!dc){ alert('El canvas de dibujo todavía no está listo.'); return; }
+    if(!strokes.length && !(cur&&cur.sm&&cur.sm.length)){
+      alert('No hay trazos para exportar. Dibuja una molécula primero.');
+      return;
+    }
+    const tmp=document.createElement('canvas');
+    tmp.width=dc.width; tmp.height=dc.height;
+    const ctx=tmp.getContext('2d');
+    ctx.fillStyle='#08080e';
+    ctx.fillRect(0,0,tmp.width,tmp.height);
+    ctx.drawImage(dc.elt,0,0);
+    if(cur&&cur.sm&&cur.sm.length>=2){
+      // Si el usuario exporta mientras está dibujando, también se incluye el trazo activo.
+      spline(ctx,cur.sm,SOFT,10);
+      spline(ctx,cur.sm,CORE,2.5);
+    }
+    const a=document.createElement('a');
+    const stamp=new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
+    a.download=`pinchdraw_${stamp}.png`;
+    a.href=tmp.toDataURL('image/png');
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+  function borrarUltimoSegmento(){
+    // Caso 1: hay trazo continuo en curso → borrar solo el último punto suavizado.
+    if(cur&&cur.sm&&cur.sm.length){
+      cur.sm.pop();
+      if(cur.raw&&cur.raw.length) cur.raw.pop();
+      if(cur.sm.length<2&&cur.raw.length<2){cur=null;rS();wasD=false;}
+      marcarCambio();
+      redrawAll(true);
+      actualizarFeedbackEnVivo(true);
+      return;
+    }
+
+    if(!strokes.length) return;
+
+    // Caso 2: hay varios trazos separados → borrar el último trazo completo.
+    if(strokes.length>1){
+      strokes.pop();
+    }else{
+      // Caso 3: solo hay un trazo continuo guardado → borrar su último punto/segmento.
+      const last=strokes[0];
+      if(last.pts.length>2) last.pts.pop();
+      else strokes.pop();
+    }
+
+    marcarCambio();
+    redrawAll();
+    actualizarFeedbackEnVivo(true);
+  }
+
+  btnA.addEventListener('click',()=>{
+    if(!strokes.length) return;
+    stateBadge.textContent='🔬 ANALIZANDO…';stateBadge.className='analyzing';
+    const res=detectarSiCambio();
+    if(!res){stateBadge.textContent='ERROR';return;}
+    const top=res.ranking[0],alts=res.ranking.slice(1,4).filter(m=>m.puntaje>15);
+    if(top.puntaje<20){
+      stateBadge.textContent='❓ NO RECONOCIDA';stateBadge.className='';
+      alert('No se reconoció ninguna molécula.\n\nDibuja:\n⬡ Hexágono → Benceno\n⬠ Pentágono → Ciclopentano\n∨ Ángulo V → Agua\n─ Línea → CO₂\n✳ Cruz (2 trazos) → Metano\nZ Zig-zag corto → Etanol\nY Forma de Y → Ácido acético\nT Forma de T → Acetona\nZig-zag largo + ramita → Acetato de etilo\n\nO usa el botón ⚛ CATÁLOGO para elegir una molécula visualmente.');
+      return;
+    }
+    stateBadge.textContent='● DETECTADO';stateBadge.className='';
+    mostrarMolecula(top,top.puntaje,alts);
+  });
+
+  document.getElementById('btn-undo').addEventListener('click',()=>{if(strokes.length){strokes.pop();marcarCambio();redrawAll();actualizarFeedbackEnVivo(true);}});
+  if(btnBorrarPunto) btnBorrarPunto.addEventListener('click',borrarUltimoSegmento);
+  if(btnExport) btnExport.addEventListener('click',exportarDibujoPNG);
+  document.getElementById('btn-clear').addEventListener('click',()=>{strokes=[];cur=null;marcarCambio();dc.clear();btnA.disabled=true;actualizarFeedbackEnVivo(true);});
+
+  // ── Rejilla de fondo pre-renderizada ──────────────────────────
+  // Antes se dibujaban ~55 líneas sueltas en CADA frame (más de 3000 llamadas
+  // por segundo a 60 fps). Ahora se dibuja una sola vez en un buffer y en el
+  // bucle solo se copia la imagen ya hecha.
+  let gridG=null;
+  function construirGrid(){
+    if(gridG) gridG.remove();
+    gridG=p.createGraphics(p.width,p.height);
+    gridG.clear();
+    gridG.stroke(255,255,255,5);
+    gridG.strokeWeight(0.4);
+    for(let x=0;x<p.width;x+=55)  gridG.line(x,0,x,p.height);
+    for(let y=0;y<p.height;y+=55) gridG.line(0,y,p.width,y);
+  }
+
+  p.setup=()=>{
+    p.createCanvas(p.windowWidth,p.windowHeight);
+    dc=p.createGraphics(p.windowWidth,p.windowHeight);dc.clear();
+    construirGrid();
+    navigator.mediaDevices.getUserMedia({video:{width:1280,height:720},audio:false})
+      .then(s=>{
+        camStream=s;               // lo reutiliza el modo perfilado para el fondo por CSS
+        vc=p.createVideo('');
+        vc.elt.srcObject=s;vc.elt.setAttribute('playsinline','');vc.elt.play();vc.hide();
+
+        // El mismo stream del fondo alimenta el recuadro 160x120 de la esquina inferior izquierda.
+        if(cameraFeed){
+          cameraFeed.srcObject=s;
+          cameraFeed.play().catch(()=>{});
+        }
+        if(cameraPreview) cameraPreview.classList.remove('offline');
+      })
+      .catch(()=>{if(cameraPreview) cameraPreview.classList.add('offline');});
+    initMediaPipe();
+  };
+
+  p.windowResized=()=>{p.resizeCanvas(p.windowWidth,p.windowHeight);const o=dc;dc=p.createGraphics(p.windowWidth,p.windowHeight);dc.clear();construirGrid();marcarCambio();redrawAll();actualizarFeedbackEnVivo(true);if(o)o.remove();};
+
+  p.draw=()=>{
+    const _t0=PERF?performance.now():0;
+    // Con videoCSS el vídeo lo pinta el compositor detrás del canvas, así que el
+    // canvas debe quedar transparente. Sin él, comportamiento actual.
+    if(perf.videoCSS) p.clear();
+    else{
+      p.background(8,8,14);
+      if(vc&&vc.elt.readyState>=2){p.push();p.translate(p.width,0);p.scale(-1,1);p.tint(255,75);p.image(vc,0,0,p.width,p.height);p.pop();p.fill(8,8,14,165);p.noStroke();p.rect(0,0,p.width,p.height);}
+    }
+    const _t1=PERF?performance.now():0;
+    if(gridG) p.image(gridG,0,0);   // rejilla ya dibujada (ver construirGrid)
+    p.image(dc,0,0);
+    const _t2=PERF?performance.now():0;
+    if(handsData.length>0){
+      const lm=handsData[0],pi=isPinching(lm),po=isPalmOpen(lm);
+      // Las dos opciones siguen disponibles: isPinching(lm) e isOnlyIndexExtended(lm).
+      const dr=isDrawingGesture(lm)&&!po;
+      if(corrT>0){corrT--;if(!corrT){setBadge('● MANO','');}}
+      else if(dr){setBadge(`✍ DIBUJANDO (${drawingMode==='pinza'?'pinza':'dedo índice'})`,'pinching');}
+      else if(po){setBadge('🖐 PAUSADO','open');}
+      else{setBadge('● MANO','');}
+      const dp=drawingPoint(lm,p.width,p.height),px=dp.x,py=dp.y;
+      const hayMovimiento=manoSeMovio(px,py);
+      if(dr){if(!wasD){cur={raw:[],sm:[]};rS();marcarCambio();}addPt(px,py);}
+      else{if(wasD)finalize();}
+
+      // Feedback en tiempo real: se actualiza dentro de draw() y usa el trazo activo.
+      if(hayMovimiento||cambio||dr) actualizarFeedbackEnVivo();
+
+      // Detección pesada del dibujo completo: solo cuando hay cambio útil, y solo para trazos ya finalizados.
+      if((hayMovimiento||cambio) && strokes.length && !cur) detectarSiCambio();
+
+      wasD=dr;
+      p.noStroke();drawSkel(lm,dr);
+      if(pi)drawPinch(px,py);
+      else{const tip=lm2c(lm[INDEX_TIP]);p.noFill();p.stroke(255,255,255,60);p.strokeWeight(1);p.circle(tip.x,tip.y,26);p.fill(160,185,210,120);p.noStroke();p.circle(tip.x,tip.y,7);}
+    }else{
+      setBadge('SIN MANO','');ultimaMano=null;
+      if(wasD)finalize();
+      if(cambio) actualizarFeedbackEnVivo(true);
+      wasD=false;
+    }
+    if(PERF) perfRegistrar(_t0,_t1,_t2,performance.now());
+  };
+});
+
+// ════════════════════════════════════════════════════
+//  MODO PERFILADO — TEMPORAL (?perf=1)
+//  Overlay con FPS y desglose de p.draw(), más toggles para comparar A/B
+//  las optimizaciones candidatas en caliente, sin recompilar.
+// ════════════════════════════════════════════════════
+
+function perfRegistrar(t0,t1,t2,t3){
+  perf.t.video+=t1-t0; perf.t.capas+=t2-t1; perf.t.mano+=t3-t2; perf.t.total+=t3-t0;
+  perf.n++; perf.frames++;
+  const ahora=performance.now();
+  if(!perf.tUlt){perf.tUlt=ahora;return;}
+  if(ahora-perf.tUlt<500) return;
+  perf.fps=perf.frames*1000/(ahora-perf.tUlt);
+  const n=perf.n||1;
+  if(perf.box) perf.box.textContent=
+    `FPS  ${perf.fps.toFixed(1)}\n`+
+    `draw ${(perf.t.total/n).toFixed(2)} ms\n`+
+    `  video ${(perf.t.video/n).toFixed(2)}\n`+
+    `  capas ${(perf.t.capas/n).toFixed(2)}\n`+
+    `  mano  ${(perf.t.mano/n).toFixed(2)}\n`+
+    `──────────────\n`+
+    `[1] video: ${perf.videoCSS?'CSS (nuevo)':'canvas (actual)'}\n`+
+    `[2] complexity: ${perf.complejidad}\n`+
+    `[3] badge: ${perf.badgeOnChange?'al cambiar':'cada frame'}\n`+
+    `[0] reiniciar contadores`;
+  perf.t={video:0,capas:0,mano:0,total:0};perf.n=0;perf.frames=0;perf.tUlt=ahora;
+}
+
+// Equivalencia visual exacta con el render actual del canvas:
+//   fondo #08080e  →  vídeo con tint alpha 75/255  →  rect #08080e alpha 165/255
+//   resultado = 0.896194*fondo + 0.103806*vídeo
+// es decir, el vídeo al 10.3806 % sobre #08080e. p5 estira la imagen a pantalla
+// completa (no recorta), de ahí object-fit:fill; scaleX(-1) reproduce el espejo.
+function perfAplicarVideoCSS(){
+  if(perf.videoCSS){
+    if(!bgVideoEl){
+      bgVideoEl=document.createElement('video');
+      bgVideoEl.id='bg-video';bgVideoEl.autoplay=true;bgVideoEl.muted=true;
+      bgVideoEl.setAttribute('playsinline','');
+      bgVideoEl.style.cssText='position:fixed;top:0;left:0;width:100vw;height:100vh;'+
+        'object-fit:fill;transform:scaleX(-1);opacity:0.103806;z-index:-1;pointer-events:none;';
+      document.body.appendChild(bgVideoEl);
+    }
+    if(camStream&&bgVideoEl.srcObject!==camStream){
+      bgVideoEl.srcObject=camStream;bgVideoEl.play().catch(()=>{});
+    }
+    document.body.style.background='#08080e';
+    bgVideoEl.style.display='';
+  }else{
+    document.body.style.background='#000';
+    if(bgVideoEl) bgVideoEl.style.display='none';
+  }
+}
+
+function perfInit(){
+  if(!PERF) return;
+  const box=document.createElement('div');
+  box.id='perf-box';
+  box.style.cssText='position:fixed;left:20px;top:96px;z-index:300;font:11px/1.45 "Courier New",monospace;'+
+    'color:#8ecae6;background:rgba(0,0,6,0.9);border:1px solid #315070;border-radius:8px;'+
+    'padding:9px 11px;white-space:pre;pointer-events:none;';
+  box.textContent='midiendo…';
+  document.body.appendChild(box);
+  perf.box=box;
+  perf.tUlt=performance.now();
+  addEventListener('keydown',e=>{
+    // Se ignoran los atajos mientras se escribe en un campo de texto.
+    const t=e.target;
+    if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA')) return;
+    if(e.key==='1'){perf.videoCSS=!perf.videoCSS;perfAplicarVideoCSS();}
+    else if(e.key==='2'){perf.complejidad=perf.complejidad?0:1;if(mpHands)mpHands.setOptions({modelComplexity:perf.complejidad});}
+    else if(e.key==='3'){perf.badgeOnChange=!perf.badgeOnChange;}
+    else if(e.key==='0'){perf.t={video:0,capas:0,mano:0,total:0};perf.n=0;perf.frames=0;perf.tUlt=performance.now();}
+  });
+}
+perfInit();
+
+// ════════════════════════════════════════════════════
+//  PANEL GUÍA — CÓMO DIBUJAR + REACCIONES
+// ════════════════════════════════════════════════════
+
+function toggleGuia(){
+  if(historialPanel) historialPanel.classList.remove('open');
+  document.getElementById('guia-panel').classList.toggle('open');
+}
+function showGuiaTab(tab){
+  ['dibujar','rx'].forEach(t=>{
+    document.getElementById('guia-tab-'+t).style.display = t===tab ? '' : 'none';
+    document.getElementById('gtab-'+t).classList.toggle('active', t===tab);
+  });
+}
+
+// ── Datos de moléculas dibujables ─────────────────────────────
+const GUIA_MOLS = [
+  {
+    color:'#48cae4', icono:'💧', nombre:'Agua', formula:'H₂O',
+    draw:'✏️ Dibuja una V con un solo trazo',
+    tip:'⚠️ El trazo queda ABIERTO — NO cierres los extremos.\n   Solo 1 esquina (el vértice de la V).',
+    fact:'🌍 ¡Tu cuerpo tiene un 70% de agua! Sin ella no existiría ningún ser vivo en la Tierra.',
+    distincion:''
+  },
+  {
+    color:'#ef233c', icono:'↔', nombre:'Dióxido de Carbono', formula:'CO₂',
+    draw:'✏️ Dibuja una línea recta horizontal',
+    tip:'💡 Cuanto más larga y recta, mejor.\n   Intenta que sea más ancha que alta.',
+    fact:'🌬️ ¡Lo produces cada vez que exhalas! Las plantas lo convierten en azúcar usando la luz del sol (fotosíntesis).',
+    distincion:''
+  },
+  {
+    color:'#fb8500', icono:'✳', nombre:'Metano', formula:'CH₄',
+    draw:'✏️ Dibuja una cruz con 2 trazos separados',
+    tip:'💡 Son 2 trazos DISTINTOS que se cruzan.\n   No es un solo trazo continuo.',
+    fact:'🔥 ¡Es el gas de la cocina! También lo producen las vacas al digerir su comida.',
+    distincion:''
+  },
+  {
+    color:'#57cc99', icono:'🍷', nombre:'Etanol', formula:'C₂H₅OH',
+    draw:'✏️ Dibuja una línea con forma de Z o zig-zag (3 tramos)',
+    tip:'💡 Es una cadenita: traza-esquina-traza-esquina-traza.\n   Como una escalerita corta. NO la cierres.\n   2 esquinas suaves, más ancho que alto.',
+    fact:'🍇 ¡Es el alcohol de las uvas! Se forma cuando las levaduras se comen el azúcar de las frutas. También se usa como gel desinfectante de manos.',
+    distincion:'Etanol = zig-zag abierto largo. Agua = V corta con 1 esquina.'
+  },
+  {
+    color:'#ff595e', icono:'🍋', nombre:'Ácido acético', formula:'CH₃COOH',
+    draw:'✏️ Dibuja una Y (o pata de pollo): una línea que se abre en dos al final',
+    tip:'💡 Empieza con un trazo y al final ábrelo en dos ramitas (una V pequeña).\n   Las 2 ramitas de arriba son los oxígenos del grupo ácido.',
+    fact:'🥗 ¡Es lo que hace agrio al vinagre! Por eso el vinagre pica en la nariz. Se usa en ensaladas y para hacer encurtidos.',
+    distincion:'Ácido acético = 1 tallo que se bifurca en Y (grupo -COOH al final).'
+  },
+  {
+    color:'#f15bb5', icono:'💅', nombre:'Acetona', formula:'CH₃COCH₃',
+    draw:'✏️ Dibuja una T o un tridente: una línea horizontal con un palito hacia arriba en el centro',
+    tip:'💡 Los dos brazos horizontales son los CH₃.\n   El palito de arriba (=O) es el oxígeno del centro.\n   Parece una T o una cruz sin la parte de abajo.',
+    fact:'💅 ¡Es lo que usan para quitar el esmalte de uñas! Huele muy fuerte y se evapora rapidísimo. Tu cuerpo también fabrica un poquito.',
+    distincion:'Acetona = forma de T (carbonilo central C=O). Metano = cruz de 2 trazos separados.'
+  },
+  {
+    color:'#ffd166', icono:'🍏', nombre:'Acetato de etilo', formula:'CH₃COOC₂H₅',
+    draw:'✏️ Dibuja un zig-zag largo (4 o más tramos) con una ramita hacia arriba',
+    tip:'💡 Es la cadena más larga: como el etanol pero con más tramos\n   y una ramita (=O) saliendo hacia arriba en medio.\n   Cuantos más tramos, mejor. NO lo cierres.',
+    fact:'🍏 ¡Huele a manzana verde y quitaesmalte! Es un éster: se fabrica juntando el vinagre (ácido acético) con el alcohol (etanol). ¡Los perfumes y sabores frutales están llenos de ésteres!',
+    distincion:'Acetato de etilo = zig-zag LARGO (4+ tramos) con ramita. Etanol = zig-zag corto (3 tramos) sin ramita.'
+  },
+  {
+    color:'#06d6a0', icono:'⬠', nombre:'Ciclopentano', formula:'C₅H₁₀',
+    draw:'✏️ Dibuja un pentágono CERRADO (5 lados)',
+    tip:'⚠️ El inicio y el final del trazo SE TOCAN.\n   5 lados, como una casa vista desde arriba.',
+    fact:'🧬 ¡Está en tus hormonas! El colesterol y la testosterona tienen anillos de ciclopentano en su estructura.',
+    distincion:''
+  },
+  {
+    color:'#3a86ff', icono:'⬡', nombre:'Benceno', formula:'C₆H₆',
+    draw:'✏️ Dibuja un hexágono CERRADO (6 lados)',
+    tip:'⚠️ El inicio y el final del trazo SE TOCAN.\n   6 lados, como un panal de abejas.',
+    fact:'🍯 Su forma hexagonal es exactamente igual a la de los panales. Tiene electrones "flotando" por todo el anillo — ¡es mágico!',
+    distincion:''
+  },
+];
+
+// Mini-canvas de guía: genera trazos de ejemplo normalizados para cada molécula.
+let guiaAnimFrame=null;
+let guiaSeleccionadaId=null;
+
+function puntosGuia(m,w,h){
+  const sx=x=>Math.round(x*w), sy=y=>Math.round(y*h);
+  const poly=(arr)=>arr.map(([x,y])=>({x:sx(x),y:sy(y)}));
+  const poligono=(cx,cy,rx,ry,lados=6,rot=-Math.PI/2)=>{
+    const pts=[];
+    for(let i=0;i<lados;i++){
+      const a=rot+(Math.PI*2*i/lados);
+      pts.push([cx+Math.cos(a)*rx,cy+Math.sin(a)*ry]);
+    }
+    pts.push(pts[0]);
+    return poly(pts);
+  };
+  const n=m.nombre;
+  if(n==='Agua') return [poly([[0.24,0.25],[0.50,0.78],[0.76,0.25]])];
+  if(n==='Dióxido de Carbono') return [poly([[0.15,0.52],[0.85,0.52]])];
+  if(n==='Metano') return [poly([[0.25,0.50],[0.75,0.50]]), poly([[0.50,0.22],[0.50,0.78]])];
+  if(n==='Etanol') return [poly([[0.15,0.68],[0.34,0.35],[0.54,0.68],[0.75,0.35]])];
+  if(n==='Ácido acético') return [poly([[0.18,0.78],[0.48,0.52],[0.74,0.28]]), poly([[0.48,0.52],[0.75,0.76]])];
+  if(n==='Acetona') return [poly([[0.20,0.56],[0.80,0.56]]), poly([[0.50,0.56],[0.50,0.20]])];
+  if(n==='Acetato de etilo') return [poly([[0.10,0.72],[0.24,0.42],[0.38,0.72],[0.52,0.42],[0.66,0.72],[0.84,0.42]]), poly([[0.52,0.42],[0.52,0.16]])];
+  if(n==='Ciclopentano') return [poligono(0.50,0.50,0.31,0.33,5)];
+  if(n==='Benceno') return [poligono(0.50,0.50,0.27,0.34,6)];
+
+  const forma=String(m.forma||'').toLocaleLowerCase('es');
+  const icono=String(m.iconoClave||'').toUpperCase();
+  const ramas=Math.max(0,Number(m.ramificaciones)||0);
+
+  if(forma.includes('componentes')||forma.includes('sal')){
+    return [
+      poly([[0.08,0.65],[0.20,0.38],[0.32,0.65]]),
+      poligono(0.58,0.51,0.15,0.27,6),
+      poly([[0.80,0.35],[0.91,0.66]])
+    ];
+  }
+  if(forma.includes('tres anillos')||forma.includes('varios anillos')||icono==='3R'){
+    return [
+      poligono(0.28,0.52,0.16,0.29,6),
+      poligono(0.50,0.52,0.16,0.29,6),
+      poligono(0.72,0.52,0.16,0.29,6)
+    ];
+  }
+  if(forma.includes('dos anillos')||icono==='2R'){
+    return [poligono(0.39,0.52,0.20,0.32,6),poligono(0.63,0.52,0.20,0.32,6)];
+  }
+  if(forma.includes('anillo')||['HEX','R5','R6'].includes(icono)){
+    const lados=(forma.includes('cinco')||icono==='R5')?5:6;
+    const trazos=[poligono(0.50,0.51,0.25,0.34,lados)];
+    if(ramas>0) trazos.push(poly([[0.50,0.17],[0.50,0.05]]));
+    if(ramas>1) trazos.push(poly([[0.72,0.66],[0.87,0.77]]));
+    if(ramas>2) trazos.push(poly([[0.28,0.66],[0.13,0.77]]));
+    return trazos;
+  }
+  if(forma.includes('muy ramificada')||icono==='TREE'){
+    return [
+      poly([[0.08,0.66],[0.22,0.38],[0.36,0.66],[0.50,0.38],[0.64,0.66],[0.78,0.38],[0.92,0.66]]),
+      poly([[0.22,0.38],[0.18,0.12]]), poly([[0.50,0.38],[0.50,0.10]]),
+      poly([[0.64,0.66],[0.70,0.90]]), poly([[0.78,0.38],[0.86,0.14]])
+    ];
+  }
+  if(forma.includes('ramificada')||icono==='BR'){
+    return [
+      poly([[0.10,0.68],[0.28,0.36],[0.46,0.68],[0.64,0.36],[0.84,0.68]]),
+      poly([[0.28,0.36],[0.26,0.12]]), poly([[0.64,0.36],[0.75,0.14]])
+    ];
+  }
+  if(forma.includes('larga')){
+    return [poly([[0.07,0.68],[0.20,0.34],[0.33,0.68],[0.46,0.34],[0.59,0.68],[0.72,0.34],[0.88,0.68]])];
+  }
+  if(forma.includes('lineal')||forma.includes('recta')||icono==='LINE'){
+    return [poly([[0.12,0.53],[0.88,0.53]])];
+  }
+  return [poly([[0.15,0.67],[0.35,0.35],[0.55,0.67],[0.78,0.35]])];
+}
+
+function longitudTrazo(pts){
+  let total=0;
+  for(let i=1;i<pts.length;i++) total+=Math.hypot(pts[i].x-pts[i-1].x,pts[i].y-pts[i-1].y);
+  return total;
+}
+
+function dibujarParcial(ctx,pts,dist,color){
+  if(pts.length<2||dist<=0) return;
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x,pts[0].y);
+  let restante=dist;
+  for(let i=1;i<pts.length;i++){
+    const a=pts[i-1],b=pts[i];
+    const seg=Math.hypot(b.x-a.x,b.y-a.y);
+    if(restante>=seg){
+      ctx.lineTo(b.x,b.y);
+      restante-=seg;
+    }else{
+      const t=seg?restante/seg:0;
+      ctx.lineTo(a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t);
+      break;
+    }
+  }
+  ctx.strokeStyle=color;
+  ctx.stroke();
+}
+
+function mostrarEjemploGuia(m){
+  const canvas=document.getElementById('guia-demo-canvas');
+  const title=document.getElementById('guia-demo-title');
+  const formula=document.getElementById('guia-demo-formula');
+  if(!canvas) return;
+  title.textContent=`Ejemplo: ${m.nombre}`;
+  formula.textContent=m.formula;
+
+  guiaSeleccionadaId=m.guiaId||m.nombre;
+  document.querySelectorAll('.gm-card').forEach(c=>c.classList.remove('selected'));
+  const selected=Array.from(document.querySelectorAll('.gm-card')).find(c=>c.dataset.guiaId===guiaSeleccionadaId);
+  if(selected) selected.classList.add('selected');
+
+  if(guiaAnimFrame) cancelAnimationFrame(guiaAnimFrame);
+  const ctx=canvas.getContext('2d');
+  const trazos=puntosGuia(m,canvas.width,canvas.height);
+  const longitudes=trazos.map(longitudTrazo);
+  const total=longitudes.reduce((a,b)=>a+b,0);
+  const duracion=1900;
+  let inicio=null;
+
+  function frame(ts){
+    if(!inicio) inicio=ts;
+    const ciclo=((ts-inicio)%duracion)/duracion;
+    const avance=total*ciclo;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    // Fondo simple de práctica, sin depender de p5.
+    ctx.fillStyle='#05070b';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.strokeStyle='rgba(255,255,255,0.05)';
+    ctx.lineWidth=1;
+    for(let x=20;x<canvas.width;x+=24){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,canvas.height);ctx.stroke();}
+    for(let y=18;y<canvas.height;y+=24){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(canvas.width,y);ctx.stroke();}
+
+    ctx.lineCap='round';
+    ctx.lineJoin='round';
+    ctx.lineWidth=9;
+    let restante=avance;
+    trazos.forEach((pts,i)=>{
+      const usar=Math.max(0,Math.min(longitudes[i],restante));
+      dibujarParcial(ctx,pts,usar,'rgba(255,255,255,0.13)');
+      restante-=longitudes[i];
+    });
+    ctx.lineWidth=3;
+    restante=avance;
+    trazos.forEach((pts,i)=>{
+      const usar=Math.max(0,Math.min(longitudes[i],restante));
+      dibujarParcial(ctx,pts,usar,m.color||'#afd870');
+      restante-=longitudes[i];
+    });
+    guiaAnimFrame=requestAnimationFrame(frame);
+  }
+  guiaAnimFrame=requestAnimationFrame(frame);
+}
+
+// Construir las nueve tarjetas educativas y las 250 moléculas del dataset.
+const GUIA_ICONOS={
+  HEX:'⬡',R5:'⬠',R6:'⬡','2R':'⬢','3R':'⬢',
+  Z3:'⌁',BR:'⌁',TREE:'⌁',LINE:'↔',ION:'±'
+};
+
+function textoGuiaSeguro(valor){
+  return String(valor??'').replace(/[&<>"']/g,c=>({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  })[c]);
+}
+
+function normalizarBusquedaGuia(valor){
+  return String(valor||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('es');
+}
+
+function adaptarMolDatasetGuia(m){
+  const adecuacion=m.adecuacion||'Sin clasificar';
+  const ayuda=adecuacion==='Alta'
+    ? 'Buen candidato para reconocer directamente por su silueta.'
+    : adecuacion==='Media'
+      ? 'Conviene marcar bien esquinas, cierres y ramificaciones.'
+      : 'Es una estructura compleja: usa el catálogo si el trazo no basta.';
+  return {
+    ...m,
+    guiaId:`dataset-${m.id||m.numero}`,
+    iconoClave:m.icono,
+    icono:GUIA_ICONOS[String(m.icono||'').toUpperCase()]||'⌁',
+    color:/^#[0-9a-f]{6}$/i.test(m.color||'')?m.color:'#8ecae6',
+    draw:`✏️ ${m.trazo||'Dibuja la silueta principal de la molécula.'}`,
+    tip:`💡 Forma: ${m.forma||'estructura molecular'}\n   Trazos sugeridos: ${m.trazos_sugeridos||1} · Dificultad: ${m.dificultad||'—'}`,
+    fact:`🧪 Familia: ${m.tipo_es||m.tipo||m.categoria||'molécula del dataset'}. Adecuación del trazo: ${adecuacion}. ${ayuda}`,
+    // "¿Para qué sirve?" y el nombre internacional, igual que en el catálogo.
+    uso:m.uso||'',
+    nombreOriginal:(m.nombre && m.nombre!==(m.nombre_es||m.nombre))?m.nombre:'',
+    source:'dataset'
+  };
+}
+
+// Ficha de elemento adaptada a la guía (no se dibuja: es de consulta).
+function adaptarElementoGuia(e){
+  return {
+    ...e,
+    guiaId:`elemento-${e.id}`,
+    iconoClave:e.simbolo,
+    icono:e.simbolo,
+    color:/^#[0-9a-f]{6}$/i.test(e.color||'')?e.color:'#8ecae6',
+    draw:`🔬 ${e.descripcion}`,
+    tip:`💡 Símbolo: ${e.simbolo} · Número atómico: ${e.numero_atomico}\n   Masa: ${e.masa_atomica} u · Grupo ${e.grupo}, período ${e.periodo}`,
+    fact:`🧪 Familia: ${e.familia}. Un átomo aislado no tiene silueta que dibujar: esta ficha es de consulta.`,
+    uso:e.uso||'',
+    nombreOriginal:e.nombre_en||'',
+    source:'elemento'
+  };
+}
+
+GUIA_MOLS.forEach((m,i)=>{m.guiaId=`basica-${i}`;m.source='basica';});
+const GUIA_DATASET=DATASET_250.map(adaptarMolDatasetGuia);
+const GUIA_ELEMENTOS=ELEMENTOS.map(adaptarElementoGuia);
+const GUIA_TODAS=[...GUIA_MOLS,...GUIA_ELEMENTOS,...GUIA_DATASET];
+
+function renderListaGuia(filtro=''){
+  const lista=document.getElementById('guia-list');
+  const count=document.getElementById('guia-count');
+  if(!lista||!count) return;
+  const query=normalizarBusquedaGuia(filtro);
+  const visibles=GUIA_TODAS.filter(m=>{
+    if(!query) return true;
+    return [m.nombre,m.nombre_es,m.nombre_en,m.simbolo,m.formula,m.tipo,m.tipo_es,
+            m.categoria,m.forma,m.trazo,m.numero,m.uso]
+      .some(v=>normalizarBusquedaGuia(v).includes(query));
+  });
+
+  count.textContent=`${visibles.length} de ${GUIA_TODAS.length} guías · ${GUIA_ELEMENTOS.length} elementos · ${GUIA_DATASET.length} del dataset`;
+  lista.innerHTML='';
+  if(!visibles.length){
+    lista.innerHTML='<div class="gm-empty">No encontré esa molécula. Prueba con el nombre, fórmula, familia o forma del trazo.</div>';
+    return;
+  }
+
+  const fragment=document.createDocumentFragment();
+  visibles.forEach(m=>{
+    const card=document.createElement('div');
+    card.className='gm-card'+(guiaSeleccionadaId===m.guiaId?' selected':'');
+    card.dataset.guiaId=m.guiaId;
+    const color=/^#[0-9a-f]{6}$/i.test(m.color||'')?m.color:'#8ecae6';
+    const source=m.source==='dataset'?'<span class="gm-source">DATASET 250</span>'
+                :m.source==='elemento'?'<span class="gm-source">ELEMENTO</span>'
+                :'<span class="gm-source">BÁSICA</span>';
+    const detalle=m.source==='dataset'
+      ? `<div class="gm-meta">#${textoGuiaSeguro(m.numero)} · ${textoGuiaSeguro(m.modo_reconocimiento||'Guía por forma')}</div>`
+      :m.source==='elemento'
+      ? `<div class="gm-meta">Z=${textoGuiaSeguro(m.numero_atomico)} · Ficha de consulta</div>`
+      :'';
+    // Nombre en español; el original se muestra debajo si difiere.
+    const titulo=m.nombre_es||m.nombre;
+    const original=m.nombreOriginal
+      ? `<div class="gm-meta" style="color:#5a6472">${textoGuiaSeguro(m.nombreOriginal)}</div>` : '';
+    card.innerHTML=`
+      <div class="gm-top">
+        <div class="gm-ico" style="background:${color}18;border:1px solid ${color}44;">${textoGuiaSeguro(m.icono)}</div>
+        <div>
+          <div class="gm-name" style="color:${color}">${textoGuiaSeguro(titulo)} ${source}</div>
+          <div class="gm-form">${textoGuiaSeguro(m.formula)}</div>
+          ${original}
+          ${detalle}
+        </div>
+      </div>
+      <div class="gm-draw">${textoGuiaSeguro(m.draw)}</div>
+      <div class="gm-tip">${textoGuiaSeguro(m.tip).replace(/\n/g,'<br>')}</div>
+      <div class="gm-fact">${textoGuiaSeguro(m.fact)}</div>
+      ${m.uso?`<div class="gm-uso">💡 <b>¿Para qué sirve?</b> ${textoGuiaSeguro(m.uso)}</div>`:''}
+      ${m.dato?`<div class="gm-uso">✨ <b>Dato curioso:</b> ${textoGuiaSeguro(m.dato)}</div>`:''}`;
+    card.addEventListener('click',()=>mostrarEjemploGuia(m));
+    fragment.appendChild(card);
+  });
+  lista.appendChild(fragment);
+}
+
+// Construir tarjetas de moléculas con mini-canvas animado.
+(function buildMolCards(){
+  const body=document.getElementById('guia-tab-dibujar');
+  body.innerHTML=`<div id="guia-demo-panel">
+    <div id="guia-demo-head">
+      <span id="guia-demo-title">Ejemplo visual</span>
+      <span id="guia-demo-formula">—</span>
+    </div>
+    <canvas id="guia-demo-canvas" width="350" height="105"></canvas>
+    <div id="guia-demo-help">Haz clic en una molécula para ver una animación del trazo recomendado.</div>
+  </div>
+  <div style="font-family:'Courier New',monospace;font-size:9px;color:#4a6a3a;line-height:1.6;padding:6px 8px;background:#0a120a;border-radius:6px;border:1px solid #1a2a1a;margin-bottom:10px;">
+    🔑 <b style="color:#7aba4a">CLAVE PARA DISTINGUIR:</b><br>
+    V corta abierta = <span style="color:#48cae4">Agua</span> &nbsp;|&nbsp;
+    Línea recta = <span style="color:#ef233c">CO₂</span><br>
+    Cruz 2 trazos = <span style="color:#fb8500">CH₄</span> &nbsp;|&nbsp;
+    Forma de T = <span style="color:#f15bb5">Acetona</span><br>
+    Zig-zag corto = <span style="color:#57cc99">Etanol</span> &nbsp;|&nbsp;
+    Cerrado 5 lados = <span style="color:#06d6a0">Ciclopentano</span> &nbsp;|&nbsp;
+    Cerrado 6 = <span style="color:#3a86ff">Benceno</span>
+  </div>
+  <div class="gm-tools">
+    <input id="guia-search" type="search" placeholder="Buscar molécula, fórmula, familia o forma…" autocomplete="off">
+    <div id="guia-count"></div>
+  </div>
+  <div id="guia-list"></div>`;
+
+  const search=document.getElementById('guia-search');
+  // Mismo debounce que en el catálogo: la guía tiene aún más tarjetas.
+  let guiaDebounce=null;
+  search.addEventListener('input',()=>{
+    clearTimeout(guiaDebounce);
+    guiaDebounce=setTimeout(()=>renderListaGuia(search.value),140);
+  });
+  renderListaGuia();
+  if(GUIA_TODAS.length) mostrarEjemploGuia(GUIA_TODAS[0]);
+})();
+
+// ── Datos de reacciones (explicación para niños) ────────────────
+const GUIA_RX = [
+  {
+    emoji:'🌸', color:'#ff6b9d', nombre:'Esterificación de Fischer',
+    eq:'Ácido Carboxílico + Alcohol → Éster + Agua',
+    ej:'CH₃COOH + C₂H₅OH → CH₃COOC₂H₅ + H₂O',
+    fact:'💡 ¡Así se hacen los perfumes y los sabores artificiales! El olor a manzana, plátano y fresa son ésteres. ¡La química huele bien!',
+  },
+  {
+    emoji:'💧', color:'#48cae4', nombre:'Hidrólisis de Éster',
+    eq:'Éster + H₂O → Ácido + Alcohol',
+    ej:'CH₃COOC₂H₅ + H₂O → CH₃COOH + C₂H₅OH',
+    fact:'💡 Es la reacción contraria a la esterificación. El agua "rompe" el éster. ¡Así funciona la digestión de las grasas en tu cuerpo!',
+  },
+  {
+    emoji:'✨', color:'#c77dff', nombre:'Oxidación de Alcohol',
+    eq:'Alcohol primario + [Ox] → Aldehído',
+    ej:'C₂H₅OH + [O] → CH₃CHO',
+    fact:'💡 Cuando el vino se pone feo y agrio, ¡es porque el alcohol se oxidó! El oxígeno del aire va transformando el alcohol poco a poco.',
+  },
+  {
+    emoji:'🧂', color:'#90dbf4', nombre:'Neutralización Ácido-Base',
+    eq:'Ácido + Base → Sal + Agua',
+    ej:'HCl + NaOH → NaCl + H₂O',
+    fact:'💡 ¡Así funcionan los antiácidos para el dolor de estómago! Un ácido y una base se juntan y se calman el uno al otro. ¡Y hasta hacen sal de mesa!',
+  },
+  {
+    emoji:'🔥', color:'#ef233c', nombre:'Combustión Completa',
+    eq:'Hidrocarburo + O₂ → CO₂ + H₂O + Energía',
+    ej:'CH₄ + 2O₂ → CO₂ + 2H₂O',
+    fact:'💡 ¡Esta es la reacción de la cocina, el carro y la calefacción! El metano u otros hidrocarburos se queman con oxígeno y liberan calor.',
+  },
+];
+
+// Construir tarjetas de reacciones
+(function buildRxCards(){
+  const body = document.getElementById('guia-tab-rx');
+  body.innerHTML = `<div style="font-family:'Courier New',monospace;font-size:9px;color:#4a6a3a;line-height:1.6;padding:6px 8px;background:#0a120a;border-radius:8px;border:1px solid #1a2a1a;margin-bottom:10px;">
+    ⚗️ Usa el botón <b style="color:#ff9f1c">🧪 REACCIÓN</b> para simular estas reacciones con tus moléculas dibujadas.
+  </div>`;
+
+  GUIA_RX.forEach(r => {
+    const card = document.createElement('div');
+    card.className = 'gr-card';
+    card.innerHTML = `
+      <div class="gr-hdr">
+        <span class="gr-emoji">${r.emoji}</span>
+        <span class="gr-name" style="color:${r.color}">${r.nombre}</span>
+      </div>
+      <div class="gr-eq">${r.eq}</div>
+      <div class="gr-ej">${r.ej}</div>
+      <div class="gr-fact">${r.fact}</div>`;
+    body.appendChild(card);
+  });
+})();
+</script>
+
+<script>
+// ════════════════════════════════════════════════════
+//  VISOR 3D REACCIÓN — cargar3DReaccion
+// ════════════════════════════════════════════════════
+let rxViewers3d = [];
+let rx3dSpin    = true;
+let rx3dStyle   = 'stick';
+
+async function fetchSDF3d(smiles){
+  const enc = encodeURIComponent(smiles);
+  const urls = [
+    `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/smiles/${enc}/SDF?record_type=3d`,
+    `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/smiles/${enc}/SDF`,
+  ];
+  for(const url of urls){
+    try{
+      const r = await fetch(url);
+      if(r.ok){ const t = await r.text(); if(t && t.trim().length > 10) return t; }
+    }catch(e){}
+  }
+  return null;
+}
+
+function rx3dApply(viewer, style){
+  viewer.setStyle({},{});
+  const jmol = {colorscheme:'Jmol'};
+  if(style==='stick')  viewer.setStyle({},{stick:{...jmol,radius:0.12},sphere:{...jmol,scale:0.28}});
+  if(style==='sphere') viewer.setStyle({},{sphere:jmol});
+  viewer.render();
+}
+
+function setRx3Style(style){
+  rx3dStyle = style;
+  document.querySelectorAll('.rx3btn').forEach(b=>b.classList.remove('active'));
+  const btn = document.getElementById('rx3-'+style);
+  if(btn) btn.classList.add('active');
+  rxViewers3d.forEach(v=>rx3dApply(v,style));
+}
+
+function toggleRx3Spin(){
+  rx3dSpin = !rx3dSpin;
+  rxViewers3d.forEach(v=>{v.spin(rx3dSpin);v.render();});
+  const btn = document.getElementById('rx3-spin');
+  if(btn) btn.classList.toggle('active', rx3dSpin);
+}
+
+const SMILES_LBL = {
+  'O=C=O':'CO₂','O':'H₂O','N':'NH₃','C':'CH₄','CC':'C₂H₆','CCC':'C₃H₈',
+  'O=O':'O₂','[H][H]':'H₂','N#N':'N₂','CCO':'C₂H₅OH','C=C':'C₂H₄',
+  'c1ccccc1':'C₆H₆','CC(=O)O':'CH₃COOH','CC(=O)OCC':'Éster',
+  'CC(=O)[O-].[Na+]':'CH₃COO⁻Na⁺','[Na+].[OH-]':'NaOH','[Na+].[Cl-]':'NaCl',
+};
+function lbl3d(s){ return SMILES_LBL[s] || (s.length>10 ? s.slice(0,10)+'…' : s); }
+
+async function addMol3d(containerId, smiles){
+  const box = document.createElement('div');
+  box.className = 'rx-mol-vbox';
+  const st = document.createElement('div');
+  st.className = 'rx-mol-status';
+  st.textContent = '⏳ cargando…';
+  box.appendChild(st);
+
+  const unit = document.createElement('div');
+  unit.className = 'rx-mol-unit';
+  unit.appendChild(box);
+
+  const lblEl = document.createElement('div');
+  lblEl.className = 'rx-mol-lbl';
+  lblEl.textContent = lbl3d(smiles);
+  unit.appendChild(lblEl);
+
+  const smEl = document.createElement('div');
+  smEl.className = 'rx-mol-sm';
+  smEl.textContent = smiles;
+  unit.appendChild(smEl);
+
+  const cont = document.getElementById(containerId);
+  // Agregar "+" si ya hay moléculas
+  if(cont.children.length > 0){
+    const plus = document.createElement('div');
+    plus.className = 'rx-plus-sign';
+    plus.textContent = '+';
+    cont.appendChild(plus);
+  }
+  cont.appendChild(unit);
+
+  // Cargar SDF y montar viewer
+  const sdf = await fetchSDF3d(smiles);
+  st.style.display = 'none';
+
+  if(sdf && typeof $3Dmol !== 'undefined'){
+    try{
+      const viewer = $3Dmol.createViewer(box, {backgroundColor:'0x080810', antialias:true});
+      viewer.addModel(sdf, 'sdf');
+      rx3dApply(viewer, rx3dStyle);
+      viewer.zoomTo();
+      viewer.spin(rx3dSpin);
+      viewer.render();
+      rxViewers3d.push(viewer);
+    }catch(e){
+      st.style.display='flex';
+      st.textContent = '⚠ Error 3D';
+    }
+  } else {
+    st.style.display='flex';
+    st.textContent = sdf ? '⚠ 3Dmol no listo' : '⚠ Sin datos 3D';
+  }
+}
+
+async function cargar3DReaccion(reactants, products, cond='→'){
+  // Limpiar viewers anteriores
+  rxViewers3d.forEach(v=>{ try{ v.clear(); }catch(e){} });
+  rxViewers3d = [];
+
+  const section = document.getElementById('rx-3d-section');
+  section.style.display = 'block';
+
+  document.getElementById('rx3-reactants').innerHTML = '';
+  document.getElementById('rx3-products').innerHTML  = '';
+
+  const condEl = document.getElementById('rx3-cond');
+  if(condEl) condEl.textContent = cond;
+
+  // Restablecer botón spin
+  const spinBtn = document.getElementById('rx3-spin');
+  if(spinBtn){ rx3dSpin=true; spinBtn.classList.add('active'); }
+
+  // Cargar reactantes y productos en paralelo
+  const rList = reactants.filter(s=>s&&s.trim());
+  const pList = products.filter(s=>s&&s.trim());
+
+  await Promise.all([
+    ...rList.map(s=>addMol3d('rx3-reactants', s)),
+    ...pList.map(s=>addMol3d('rx3-products',  s)),
+  ]);
+}
+</script>
+</body>
+</html>
+
+
+

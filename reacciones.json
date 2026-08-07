@@ -1,0 +1,37 @@
+{
+ "esterificacion": {
+  "nombre": "Esterificación de Fischer",
+  "smarts": "[C:1](=[O:2])[OH:3].[O:4][H:5]>>[C:1](=[O:2])[O:4].[OH2:3][H:5]",
+  "num_reactantes": 2,
+  "descripcion": "Ácido carboxílico + Alcohol → Éster + Agua",
+  "explicacion": "Ocurrió una ESTERIFICACIÓN DE FISCHER. El grupo carboxilo (-COOH) del ácido reacciona con el grupo hidroxilo (-OH) del alcohol: el oxígeno del alcohol se incorpora al nuevo éster, mientras que el -OH del ácido se combina con un H del alcohol para liberar agua. En el laboratorio esta reacción necesita normalmente un catalizador ácido (p. ej. H₂SO₄) y calor, y es reversible: el éster puede hidrolizarse de vuelta a ácido + alcohol.",
+  "sugerencia_error": "Estas moléculas no pueden reaccionar de esta forma. Intenta con un ácido carboxílico (ej. CC(=O)O, ácido acético) y un alcohol (ej. CCO, etanol).",
+  "grupos_requeridos": [
+   "ácido carboxílico (-COOH)",
+   "alcohol (-OH)"
+  ]
+ },
+ "hidrolisis_ester": {
+  "nombre": "Hidrólisis de éster",
+  "smarts": "[C:1](=[O:2])[O:4].[OH2:3][H:5]>>[C:1](=[O:2])[OH:3].[O:4][H:5]",
+  "num_reactantes": 2,
+  "descripcion": "Éster + Agua → Ácido carboxílico + Alcohol",
+  "explicacion": "Ocurrió una HIDRÓLISIS DE ÉSTER (la reacción inversa a la esterificación). Una molécula de agua ataca al carbono carbonílico del éster, rompiendo el enlace C-O y regenerando el ácido carboxílico y el alcohol originales. En medio ácido se llama hidrólisis ácida; en medio básico (NaOH) se llama saponificación.",
+  "sugerencia_error": "Estas moléculas no pueden reaccionar de esta forma. Intenta con un éster (ej. CC(=O)OCC, acetato de etilo) y agua (O).",
+  "grupos_requeridos": [
+   "éster (-COO-)",
+   "agua (H₂O)"
+  ]
+ },
+ "oxidacion_alcohol": {
+  "nombre": "Oxidación de alcohol primario",
+  "smarts": "[CH2:1][OH:2]>>[CH1:1]=[O:2]",
+  "num_reactantes": 1,
+  "descripcion": "Alcohol primario + [Ox] → Aldehído",
+  "explicacion": "Ocurrió una OXIDACIÓN de un alcohol primario a aldehído. El carbono que sostenía el grupo -OH pierde un hidrógeno y forma un doble enlace C=O. En el laboratorio se usa un agente oxidante (p. ej. KMnO₄, CrO₃ o el reactivo de Collins) que no se dibuja explícitamente aquí. Si la oxidación continuara, el aldehído podría seguir oxidándose hasta ácido carboxílico.",
+  "sugerencia_error": "Esta molécula no tiene un alcohol primario oxidable (-CH2-OH). Intenta con etanol (CCO) o 1-propanol (CCCO).",
+  "grupos_requeridos": [
+   "alcohol primario (-CH2OH)"
+  ]
+ }
+}
