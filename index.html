@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Proyecto Final SFS — Reconocimiento Molecular</title>
+  <title>Proyecto Final PT4 — Reconocimiento Molecular</title>
   <link rel="icon" href="favicon.ico"/>
   <script src="https://3Dmol.csb.pitt.edu/build/3Dmol-min.js"></script>
 
@@ -84,11 +84,11 @@
     #live-detection.warn{color:#ffbe0b;border-color:#554400;background:rgba(255,190,11,0.07);}
     #live-detection.wait{color:#6c7480;border-color:#30343c;}
     #correction-panel{position:fixed;top:64px;right:20px;z-index:20;display:flex;flex-direction:column;gap:4px;align-items:flex-end;}
-    #correction-panel label{font-family:'Courier New',monospace;font-size:9px;color:#444;letter-spacing:2px;}
+    #correction-panel label{font-family:'Courier New',monospace;font-size:14px;color:#b9c6d6;letter-spacing:2px;}
     #eps-row{display:flex;align-items:center;gap:6px;}
     #eps-slider{width:100px;accent-color:#888;cursor:pointer;}
     #eps-value{font-family:'Courier New',monospace;font-size:10px;color:#666;width:32px;text-align:right;}
-    #hint{position:fixed;bottom:68px;left:50%;transform:translateX(-50%);font-family:'Courier New',monospace;font-size:10px;color:#e60707;letter-spacing:1px;white-space:nowrap;pointer-events:none;z-index:20;text-align:center;line-height:1.6;}
+    #hint{position:fixed;bottom:68px;left:50%;transform:translateX(-50%);font-family:'Courier New',monospace;font-size:14px;color:#ff8a8a;letter-spacing:1px;white-space:nowrap;pointer-events:none;z-index:20;text-align:center;line-height:1.6;}
     #buttons{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);display:flex;gap:10px;z-index:20;flex-wrap:wrap;justify-content:center;max-width:calc(100vw - 230px);}
     .btn{font-family:'Courier New',monospace;font-size:11px;letter-spacing:2px;padding:7px 18px;background:rgba(0,0,0,0.8);border-radius:6px;cursor:pointer;transition:all 0.2s;color:#666;border:1px solid #333;}
     .btn:hover{border-color:#bbb;color:#fff;}
@@ -143,60 +143,95 @@
     #btn-guia{position:fixed;bottom:18px;right:20px;z-index:25;font-family:'Courier New',monospace;font-size:10px;letter-spacing:2px;padding:7px 15px;background:rgba(0,0,0,0.88);border-radius:6px;cursor:pointer;border:1px solid #3a5a2a;color:#7aba4a;transition:all 0.2s;}
     #btn-guia:hover{border-color:#afd870;color:#cff0a0;box-shadow:0 0 10px rgba(175,216,112,0.25);}
 
+
+    /* ── Ayuda que aparece cuando alguien está peleando con el trazo ── */
+    #ayuda-dibujo{position:fixed;left:50%;bottom:120px;transform:translateX(-50%) translateY(14px);
+      z-index:60;max-width:min(440px,92vw);background:#131a26;border:1px solid #8fd06a;
+      border-radius:12px;padding:14px 16px;box-shadow:0 10px 40px rgba(0,0,0,0.75);
+      font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;}
+    #ayuda-dibujo.visible{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto;}
+    #ayuda-dibujo h4{margin:0 0 6px;font-size:16px;color:#cbe89a;}
+    #ayuda-dibujo p{margin:0 0 10px;font-size:14px;color:#d6e0ec;line-height:1.6;}
+    #ayuda-dibujo .ayuda-acciones{display:flex;flex-wrap:wrap;gap:8px;}
+    #ayuda-dibujo button{font-family:inherit;font-size:14px;padding:8px 12px;border-radius:8px;
+      cursor:pointer;background:#1b2534;border:1px solid #3a4a5e;color:#e8edf2;}
+    #ayuda-dibujo button:hover{border-color:#8fd06a;}
+    #ayuda-dibujo button.principal{background:rgba(175,216,112,0.22);border-color:#8fd06a;color:#eaf5d8;}
+    /* Resalte temporal del control al que apunta la ayuda. */
+    .resaltado{animation:latido 1.1s ease-in-out 3;}
+    @keyframes latido{0%,100%{box-shadow:0 0 0 0 rgba(143,208,106,0);}
+      50%{box-shadow:0 0 0 7px rgba(143,208,106,0.45);}}
     /* ── PANEL GUÍA LATERAL ───────────────────────────── */
     #guia-panel{position:fixed;right:0;top:0;bottom:0;width:min(390px,100vw);background:#07090e;border-left:1px solid #1a2530;z-index:150;display:flex;flex-direction:column;transform:translateX(100%);transition:transform 0.3s ease;box-shadow:-12px 0 40px rgba(0,0,0,0.85);}
     #guia-panel.open{transform:translateX(0);}
     #guia-hdr{padding:14px 16px 10px;border-bottom:1px solid #1a2530;flex-shrink:0;background:#0b0f16;}
     #guia-hdr-row{display:flex;justify-content:space-between;align-items:center;}
     #guia-titulo{font-family:'Courier New',monospace;font-size:14px;font-weight:bold;color:#fff;letter-spacing:2px;}
-    #guia-sub{font-family:'Courier New',monospace;font-size:9px;color:#4a7a2a;letter-spacing:1px;margin-top:3px;}
-    #guia-x{background:none;border:none;color:#555;font-size:18px;cursor:pointer;line-height:1;padding:0;}
+    #guia-sub{font-family:'Courier New',monospace;font-size:14px;color:#8fd06a;letter-spacing:1px;margin-top:3px;}
+    #guia-x{background:none;border:none;color:#b9c6d6;font-size:22px;cursor:pointer;line-height:1;padding:0;}
     #guia-x:hover{color:#fff;}
     .g-tabs{display:flex;border-bottom:1px solid #1a2530;flex-shrink:0;}
-    .g-tab{flex:1;font-family:'Courier New',monospace;font-size:9px;padding:10px 4px;background:none;border:none;color:#555;cursor:pointer;transition:all 0.2s;letter-spacing:1px;border-bottom:2px solid transparent;}
+    .g-tab{flex:1;font-family:'Courier New',monospace;font-size:14px;padding:12px 4px;background:none;border:none;color:#a8b6c6;cursor:pointer;transition:all 0.2s;letter-spacing:1px;border-bottom:2px solid transparent;}
     .g-tab.active{color:#afd870;border-bottom-color:#afd870;}
-    .g-tab:hover:not(.active){color:#888;}
+    .g-tab:hover:not(.active){color:#e8edf2;}
     .g-body{flex:1;overflow-y:auto;padding:10px 8px;}
     .g-body::-webkit-scrollbar{width:3px;}
     .g-body::-webkit-scrollbar-thumb{background:#1e2a30;border-radius:2px;}
     .gm-tools{position:sticky;top:-10px;z-index:3;background:#07090e;padding:2px 0 9px;margin-bottom:2px;}
-    #guia-search{width:100%;box-sizing:border-box;background:#0b1017;border:1px solid #26323e;border-radius:6px;color:#e8edf2;font-family:'Courier New',monospace;font-size:11px;padding:9px 10px;outline:none;}
+    #guia-search{width:100%;box-sizing:border-box;background:#0b1017;border:1px solid #26323e;border-radius:6px;color:#e8edf2;font-family:'Courier New',monospace;font-size:15px;padding:11px 10px;outline:none;}
     #guia-search:focus{border-color:#7aba4a;box-shadow:0 0 0 2px rgba(122,186,74,0.12);}
-    #guia-count{font-family:'Courier New',monospace;font-size:8px;color:#64707c;margin-top:6px;line-height:1.4;}
+    #guia-count{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;color:#a8b6c6;margin-top:8px;line-height:1.5;}
     #guia-list{min-height:80px;}
-    .gm-empty{font-family:'Courier New',monospace;font-size:10px;color:#6c7480;line-height:1.6;padding:18px 10px;text-align:center;border:1px dashed #26323e;border-radius:6px;}
-    .gm-source{display:inline-block;margin-left:6px;color:#06d6a0;font-size:8px;font-weight:normal;}
-    .gm-meta{margin-top:4px;color:#78828d;font-size:8px;line-height:1.45;word-break:break-word;}
+    .gm-empty{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;color:#a8b6c6;line-height:1.6;padding:18px 10px;text-align:center;border:1px dashed #3a4a5e;border-radius:6px;}
+    .gm-source{display:inline-block;margin-left:6px;color:#2ee6b0;font-size:12px;font-weight:normal;letter-spacing:0.5px;}
+    .gm-meta{margin-top:5px;color:#a8b6c6;font-size:14px;line-height:1.5;word-break:break-word;}
 
     /* ── TARJETA DE MOLÉCULA (guía) ───────────────────── */
-    .gm-card{background:#0c1018;border:1px solid #1a2530;border-radius:10px;padding:10px;margin-bottom:8px;transition:border-color 0.2s;cursor:pointer;content-visibility:auto;contain-intrinsic-size:auto 210px;}
+    .gm-card{background:#131a26;border:1px solid #2b3a4d;border-radius:10px;padding:12px;margin-bottom:8px;transition:border-color 0.2s;cursor:pointer;content-visibility:auto;contain-intrinsic-size:auto 210px;}
     .gm-card:hover{border-color:#6a9a30;}
     .gm-card.selected{border-color:#afd870;box-shadow:0 0 12px rgba(175,216,112,0.12);}
     /* ── Mini-canvas educativo: muestra cómo trazar la molécula seleccionada ── */
-    #guia-demo-panel{background:#080c12;border:1px solid #1a2530;border-radius:12px;padding:9px;margin-bottom:10px;}
+    #guia-demo-panel{background:#111826;border:1px solid #2b3a4d;border-radius:12px;padding:12px;margin-bottom:12px;}
     #guia-demo-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;font-family:'Courier New',monospace;}
-    #guia-demo-title{font-size:10px;color:#afd870;letter-spacing:1px;}
-    #guia-demo-formula{font-size:10px;color:#06d6a0;}
-    #guia-demo-canvas{width:100%;height:105px;border-radius:9px;background:#05070b;border:1px solid #121a22;display:block;}
-    #guia-demo-help{font-family:'Courier New',monospace;font-size:8px;color:#556;line-height:1.5;margin-top:6px;}
+    #guia-demo-title{font-size:16px;font-weight:bold;color:#cbe89a;letter-spacing:0.5px;}
+    #guia-demo-formula{font-size:16px;color:#2ee6b0;}
+    #guia-demo-canvas{width:100%;height:130px;border-radius:9px;background:#0d1420;border:1px solid #2b3a4d;display:block;}
+    #guia-demo-help{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;color:#a8b6c6;line-height:1.55;margin-top:8px;}
     .gm-top{display:flex;align-items:center;gap:10px;margin-bottom:7px;}
     .gm-ico{width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
-    .gm-name{font-family:'Courier New',monospace;font-size:13px;font-weight:bold;color:#fff;}
-    .gm-form{font-family:'Courier New',monospace;font-size:10px;color:#888;margin-top:2px;}
-    .gm-draw{font-family:'Courier New',monospace;font-size:10px;color:#afd870;padding:5px 8px;background:rgba(175,216,112,0.07);border-radius:6px;border-left:2px solid #6a9a30;margin-bottom:5px;line-height:1.5;}
-    .gm-tip{font-family:'Courier New',monospace;font-size:9px;color:#c28a31;padding:4px 8px;background:rgba(194,138,49,0.07);border-radius:5px;border-left:2px solid #6a4a10;margin-bottom:5px;line-height:1.5;}
-    .gm-fact{font-family:'Courier New',monospace;font-size:9px;color:#556;line-height:1.55;}
-    .gm-uso{font-family:'Courier New',monospace;font-size:9px;color:#7fa8c9;line-height:1.55;margin-top:5px;padding:4px 8px;background:rgba(74,158,255,0.06);border-radius:5px;border-left:2px solid #2d5a7a;}
-    .gm-uso b{color:#9dc4e0;}
+    .gm-name{font-family:'Courier New',monospace;font-size:17px;font-weight:bold;color:#fff;line-height:1.35;}
+    .gm-form{font-family:'Courier New',monospace;font-size:15px;color:#b9c6d6;margin-top:3px;}
+    .gm-draw{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;color:#cbe89a;padding:8px 10px;background:rgba(175,216,112,0.12);border-radius:6px;border-left:3px solid #8fd06a;margin:8px 0 6px;line-height:1.55;}
+    .gm-tip{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;color:#f0b860;padding:7px 10px;background:rgba(194,138,49,0.12);border-radius:5px;border-left:3px solid #c28a31;margin-bottom:6px;line-height:1.55;}
+    .gm-fact{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;color:#a8b6c6;line-height:1.6;}
+    .gm-uso{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;color:#a8cbe6;line-height:1.6;margin-top:6px;padding:8px 10px;background:rgba(74,158,255,0.12);border-radius:5px;border-left:3px solid #4a8ab8;}
+    .gm-uso b{color:#d3e6f5;}
 
+
+    /* ── Guía rediseñada: separación entre lo dibujable y lo consultable ── */
+    .gm-seccion{font-family:'Courier New',monospace;font-size:14px;color:#cbe89a;letter-spacing:1px;margin:14px 0 8px;padding:8px 10px;background:rgba(175,216,112,0.10);border-radius:6px;line-height:1.5;}
+    .gm-seccion-consulta{color:#a8cbe6;background:rgba(74,158,255,0.10);}
+    .gm-source-dib{color:#cbe89a;}
+    .gm-card.gm-consulta{opacity:0.92;border-style:dashed;}
+    .gm-porque{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;color:#e0d0a8;line-height:1.6;margin-top:6px;padding:8px 10px;background:rgba(240,184,96,0.10);border-radius:5px;border-left:3px solid #c28a31;}
+    .gm-porque b{color:#f5dfb0;}
+    /* Explicación de por qué esa forma, junto a la animación. */
+    #guia-demo-porque{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;color:#e0d0a8;line-height:1.6;margin-top:9px;padding:8px 10px;background:rgba(240,184,96,0.10);border-radius:6px;min-height:1em;}
+    #guia-demo-controles{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:9px;}
+    #guia-vel-label{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;color:#a8b6c6;margin-left:4px;}
+    #guia-repetir,.guia-vel{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;padding:6px 10px;border-radius:6px;cursor:pointer;background:#1b2534;border:1px solid #3a4a5e;color:#d6e0ec;}
+    #guia-repetir:hover,.guia-vel:hover{border-color:#8fd06a;color:#fff;}
+    .guia-vel.activa{background:rgba(175,216,112,0.20);border-color:#8fd06a;color:#eaf5d8;}
+    #guia-clave{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;color:#cbe89a;line-height:1.6;padding:10px 12px;background:#101a12;border-radius:8px;border:1px solid #2f4a28;margin-bottom:12px;}
+    #guia-clave b{color:#eaf5d8;}
     /* ── TARJETA DE REACCIÓN (guía) ───────────────────── */
-    .gr-card{background:#0c1018;border:1px solid #1a2530;border-radius:10px;padding:10px;margin-bottom:8px;}
+    .gr-card{background:#131a26;border:1px solid #2b3a4d;border-radius:10px;padding:10px;margin-bottom:8px;}
     .gr-hdr{display:flex;align-items:center;gap:8px;margin-bottom:5px;}
     .gr-emoji{font-size:18px;}
-    .gr-name{font-family:'Courier New',monospace;font-size:11px;font-weight:bold;color:#fff;letter-spacing:1px;}
-    .gr-eq{font-family:'Courier New',monospace;font-size:10px;color:#7bbfff;line-height:1.7;margin-bottom:4px;}
-    .gr-ej{font-family:'Courier New',monospace;font-size:8px;color:#445;line-height:1.5;margin-bottom:4px;word-break:break-all;}
-    .gr-fact{font-family:'Courier New',monospace;font-size:9px;color:#6a7a5a;line-height:1.55;}
+    .gr-name{font-family:'Courier New',monospace;font-size:16px;font-weight:bold;color:#fff;letter-spacing:1px;}
+    .gr-eq{font-family:'Courier New',monospace;font-size:15px;color:#9fd0ff;line-height:1.7;margin-bottom:4px;}
+    .gr-ej{font-family:'Courier New',monospace;font-size:14px;color:#a8b6c6;line-height:1.5;margin-bottom:4px;word-break:break-all;}
+    .gr-fact{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;color:#b3c99a;line-height:1.6;}
 
     #catalogo-modal{position:fixed;inset:0;background:rgba(0,0,6,0.92);backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:center;z-index:190;transition:opacity 0.25s;}
     #catalogo-modal.hidden{opacity:0;pointer-events:none;}
@@ -214,20 +249,20 @@
        están fuera de la vista. Con cientos de fichas evita el tirón al abrir
        el catálogo y al hacer scroll. contain-intrinsic-size reserva el alto
        aproximado para que la barra de scroll no salte. */
-    .catalogo-item{background:#0d1219;border:1px solid #1e2530;border-radius:8px;padding:10px;cursor:pointer;transition:all 0.15s;text-align:left;content-visibility:auto;contain-intrinsic-size:auto 190px;}
+    .catalogo-item{background:#131a26;border:1px solid #2b3a4d;border-radius:8px;padding:10px;cursor:pointer;transition:all 0.15s;text-align:left;content-visibility:auto;contain-intrinsic-size:auto 190px;}
     .catalogo-item:hover{border-color:#c77dff;background:rgba(157,78,221,0.08);}
     .catalogo-item-head{display:flex;align-items:center;gap:8px;margin-bottom:5px;}
     .catalogo-icon{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
-    .catalogo-nombre{font-size:11px;color:#eee;letter-spacing:1px;}
-    .catalogo-formula{font-size:10px;color:#06d6a0;margin-top:2px;}
-    .catalogo-tipo{font-size:8px;color:#555;letter-spacing:1px;text-transform:uppercase;}
-    .catalogo-smiles{font-size:8px;color:#7bbfff;word-break:break-all;margin-top:5px;}
-    .catalogo-trazo{font-size:8px;color:#aab4c3;line-height:1.45;margin-top:7px;padding-top:6px;border-top:1px solid #1e2530;}
-    .catalogo-uso{font-size:8px;color:#8fb98f;line-height:1.5;margin-top:6px;padding-top:6px;border-top:1px solid #1e2530;}
+    .catalogo-nombre{font-size:16px;color:#f2f5f8;letter-spacing:1px;}
+    .catalogo-formula{font-size:15px;color:#2ee6b0;margin-top:2px;}
+    .catalogo-tipo{font-size:14px;color:#a8b6c6;letter-spacing:1px;text-transform:uppercase;}
+    .catalogo-smiles{font-size:14px;color:#9fd0ff;word-break:break-all;margin-top:5px;}
+    .catalogo-trazo{font-size:14px;color:#c3ccd8;line-height:1.6;margin-top:7px;padding-top:6px;border-top:1px solid #1e2530;}
+    .catalogo-uso{font-size:14px;color:#a8cfa8;line-height:1.6;margin-top:6px;padding-top:6px;border-top:1px solid #1e2530;}
     .catalogo-uso b{color:#a8d5a8;}
-    .catalogo-nombre-en{font-size:8px;color:#5a6472;letter-spacing:0.5px;margin-top:1px;}
+    .catalogo-nombre-en{font-size:14px;color:#a8b6c6;letter-spacing:0.5px;margin-top:1px;}
     .catalogo-elemento{border-color:#2d4356;}
-    .catalogo-badge-el{display:inline-block;font-size:7px;letter-spacing:1px;color:#4a9eff;border:1px solid #2d4356;border-radius:3px;padding:1px 4px;margin-left:5px;vertical-align:middle;}
+    .catalogo-badge-el{display:inline-block;font-size:12px;letter-spacing:1px;color:#4a9eff;border:1px solid #2d4356;border-radius:3px;padding:1px 4px;margin-left:5px;vertical-align:middle;}
 
   
     #mol-modal{position:fixed;inset:0;background:rgba(0,0,6,0.92);backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:center;z-index:200;transition:opacity 0.25s;}
@@ -473,6 +508,19 @@
   <!-- Tab: reacciones comunes -->
   <div class="g-body" id="guia-tab-rx" style="display:none"></div>
 </div>
+<!-- Ayuda contextual: sale cuando alguien lleva dos borrados seguidos o
+     cuando ANALIZAR no reconoce nada. Es el momento en que el modo lápiz y la
+     corrección hacen falta, y por tanto el momento de enseñarlos. -->
+<div id="ayuda-dibujo" role="status" aria-live="polite">
+  <h4 id="ayuda-dibujo-titulo">¿Cuesta dibujar?</h4>
+  <p id="ayuda-dibujo-texto"></p>
+  <div class="ayuda-acciones">
+    <button type="button" class="principal" id="ayuda-modo"></button>
+    <button type="button" id="ayuda-suavizar">🎚 Ajustar corrección</button>
+    <button type="button" id="ayuda-guia">📚 Ver cómo se dibuja</button>
+    <button type="button" id="ayuda-cerrar">Cerrar</button>
+  </div>
+</div>
 <div id="buttons">
   <button class="btn" id="btn-undo">↩ DESHACER</button>
   <button class="btn" id="btn-borrar-punto" title="Borra el último punto del trazo continuo o el último trazo separado">⌫ BORRAR ÚLTIMO TRAZO</button>
@@ -674,6 +722,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.3/p5.min.js"></script>
 <script src="molecules_250.js"></script>
 <script src="elementos_quimicos.js"></script>
+<script src="pinchdraw-trazos.js"></script>
 
 <script>
 
@@ -733,6 +782,85 @@ function toggleDrawingMode(){
 }
 drawingModeButton.addEventListener('click',toggleDrawingMode);
 updateDrawingModeUI();
+
+
+// ══════════════════════════════════════════════════════
+//  AYUDA CONTEXTUAL — descubribilidad del modo lápiz
+//
+//  El modo lápiz y el control de corrección existían desde el principio, pero
+//  nadie los encontraba: vivían en una fila de botones que sólo se mira cuando
+//  ya se sabe qué se busca. Aquí se ofrecen en el único momento en que a
+//  alguien le importan, que es cuando está peleándose con el trazo.
+// ══════════════════════════════════════════════════════
+const AYUDA_VISTA_KEY='pinchdraw_ayuda_dibujo_v1';
+const ayudaPanel=document.getElementById('ayuda-dibujo');
+const ayudaTitulo=document.getElementById('ayuda-dibujo-titulo');
+const ayudaTexto=document.getElementById('ayuda-dibujo-texto');
+const ayudaModoBtn=document.getElementById('ayuda-modo');
+let ayudaTimer=null;
+
+function textoModoAlternativo(){
+  return drawingMode==='pinza'
+    ? '☝ Cambiar a modo lápiz'
+    : '🤏 Cambiar a modo pinza';
+}
+
+function cerrarAyudaDibujo(){
+  if(ayudaTimer){clearTimeout(ayudaTimer);ayudaTimer=null;}
+  ayudaPanel.classList.remove('visible');
+}
+
+function mostrarAyudaDibujo(titulo,texto){
+  if(!ayudaPanel) return;
+  ayudaTitulo.textContent=titulo;
+  ayudaTexto.textContent=texto;
+  ayudaModoBtn.textContent=textoModoAlternativo();
+  ayudaPanel.classList.add('visible');
+  if(ayudaTimer) clearTimeout(ayudaTimer);
+  // Se va sola: es una ayuda, no un diálogo que haya que despachar.
+  ayudaTimer=setTimeout(cerrarAyudaDibujo,16000);
+}
+
+function resaltar(id){
+  const el=document.getElementById(id);
+  if(!el) return;
+  el.classList.remove('resaltado');
+  void el.offsetWidth;          // reinicia la animación
+  el.classList.add('resaltado');
+}
+
+if(ayudaPanel){
+  ayudaModoBtn.addEventListener('click',()=>{
+    toggleDrawingMode();
+    ayudaModoBtn.textContent=textoModoAlternativo();
+    resaltar('btn-drawing-mode');
+    mostrarAyudaDibujo(drawingModeName()+' activado',
+      drawingMode==='lapiz'
+        ? 'Ahora dibujas extendiendo SÓLO el dedo índice. Cierra el resto de la mano. Para pausar, abre la palma.'
+        : 'Ahora dibujas juntando el pulgar y el índice. Sepáralos para levantar el trazo.');
+  });
+  document.getElementById('ayuda-suavizar').addEventListener('click',()=>{
+    resaltar('correction-panel');
+    mostrarAyudaDibujo('Corrección del trazo',
+      'La barra de arriba a la derecha suaviza el temblor. Súbela si tu trazo sale tembloroso; bájala si te está redondeando las esquinas.');
+  });
+  document.getElementById('ayuda-guia').addEventListener('click',()=>{
+    cerrarAyudaDibujo();
+    document.getElementById('guia-panel').classList.add('open');
+  });
+  document.getElementById('ayuda-cerrar').addEventListener('click',cerrarAyudaDibujo);
+}
+
+// Primera visita: se señalan los dos controles una sola vez, para que al menos
+// consten. El aviso útil de verdad es el que sale luego, en el apuro.
+if(ayudaPanel && !localStorage.getItem(AYUDA_VISTA_KEY)){
+  setTimeout(()=>{
+    localStorage.setItem(AYUDA_VISTA_KEY,'1');
+    mostrarAyudaDibujo('Dos formas de dibujar',
+      'Puedes dibujar juntando pulgar e índice (pinza) o extendiendo sólo el índice (lápiz). Si el trazo sale tembloroso, la barra de CORRECCIÓN lo suaviza.');
+    resaltar('btn-drawing-mode');
+  },4000);
+}
 
 const THUMB_TIP=4,INDEX_TIP=8,INDEX_PIP=6,MID_TIP=12,MID_PIP=10;
 const RING_TIP=16,RING_PIP=14,PINKY_TIP=20,PINKY_PIP=18;
@@ -803,62 +931,57 @@ const SW=7;let sB=[];
 function rS(){sB=[];}
 function sP(r){sB.push(r);if(sB.length>SW)sB.shift();let wx=0,wy=0,wT=0;sB.forEach((p,i)=>{const w=i+1;wx+=p.x*w;wy+=p.y*w;wT+=w;});return{x:wx/wT,y:wy/wT};}
 
-function extraerF(strokes){
-  if(!strokes||!strokes.length) return null;
-  const all=strokes.flatMap(s=>s.pts);
-  if(all.length<2) return null;
-  const xs=all.map(p=>p.x),ys=all.map(p=>p.y);
-  const w=Math.max(...xs)-Math.min(...xs),h=Math.max(...ys)-Math.min(...ys);
-  const ar=h>10?w/h:99;
-  const pp=strokes.reduce((a,b)=>a.pts.length>b.pts.length?a:b).pts;
-  let nc=0;
-  for(let i=1;i<pp.length-1;i++){
-    const v1={x:pp[i].x-pp[i-1].x,y:pp[i].y-pp[i-1].y},v2={x:pp[i+1].x-pp[i].x,y:pp[i+1].y-pp[i].y};
-    const l1=Math.hypot(v1.x,v1.y),l2=Math.hypot(v2.x,v2.y);
-    if(l1<1||l2<1) continue;
-    if(Math.acos(Math.max(-1,Math.min(1,(v1.x*v2.x+v1.y*v2.y)/(l1*l2))))*180/Math.PI>25) nc++;
-  }
-  const dc=pp.length>3?Math.hypot(pp[0].x-pp[pp.length-1].x,pp[0].y-pp[pp.length-1].y):999;
-  // rectitud = largo del trazo / distancia entre extremos.
-  //   ≈1  → recto (línea/enlace);  >1.2 → zig-zag (cadena);  99 → cerrado/compacto.
-  let plen=0;for(let i=1;i<pp.length;i++){plen+=Math.hypot(pp[i].x-pp[i-1].x,pp[i].y-pp[i-1].y);}
-  const e2e=pp.length>1?Math.hypot(pp[0].x-pp[pp.length-1].x,pp[0].y-pp[pp.length-1].y):0;
-  const rectitud=e2e>5?plen/e2e:99;
-  return{numTrazos:strokes.length,aspectRatio:ar,numCodos:nc,esCerrado:dc<Math.max(40,Math.max(w,h)*0.15),rectitud:rectitud};
-}
+/*
+ * El reconocimiento de trazos vive en pinchdraw-trazos.js.
+ *
+ * Antes estaba aquí: extraerF() resumía el dibujo en cinco números y cada
+ * ficha de DB traía una función score() escrita a mano. Ese diseño tenía dos
+ * fallos que se notaban al usarlo:
+ *
+ *   1. extraerF() analizaba SÓLO el trazo más largo. En una T, el trazo más
+ *      largo es la barra, así que el palo no entraba en el análisis y la
+ *      acetona quedaba descrita como "una línea recta" — la misma descripción
+ *      que el etino. De ahí el "dibujé acetona y me dijo etino".
+ *   2. Las score() competían entre 26 plantillas que no eran separables entre
+ *      sí a mano alzada.
+ *
+ * Ahora el descriptor mira todos los trazos y sólo compiten las 17 formas que
+ * pasan la prueba de separación de test/trazos.js.
+ */
+const TRAZOS = window.PINCHDRAW_TRAZOS;
 
 const DB=[
-  {id:'benzeno',nombre:'Benceno',nombre_en:'benzene',formula:'C₆H₆',smiles:'c1ccccc1',peso:'78.11 g/mol',tipo:'Hidrocarburo aromático',descripcion:'Anillo hexagonal con 6 carbonos y electrones π deslocalizados. Molécula aromática fundamental. Cumple la Regla de Hückel (4n+2, n=1). Descubierto por Faraday en 1825.',color:'#3a86ff',icono:'⬡',score(f){let s=0;if(f.esCerrado)s+=38;if(f.numTrazos===1)s+=10;if(f.numCodos>=5&&f.numCodos<=8)s+=38;if(f.aspectRatio>=0.7&&f.aspectRatio<=1.4)s+=14;return s;}},
-  {id:'ciclopentano',nombre:'Ciclopentano',nombre_en:'cyclopentane',formula:'C₅H₁₀',smiles:'C1CCCC1',peso:'70.13 g/mol',tipo:'Cicloalcano',descripcion:'Anillo de 5 carbonos saturado. Conf. envelope. Presente en esteroides y terpenos. Tensión angular menor que el ciclobutano (ángulo ≈ 108°).',color:'#06d6a0',icono:'⬠',score(f){let s=0;if(f.esCerrado)s+=38;if(f.numTrazos===1)s+=10;if(f.numCodos>=4&&f.numCodos<=5)s+=40;if(f.aspectRatio>=0.8&&f.aspectRatio<=1.25)s+=12;return s;}},
-  {id:'ciclopropano',nombre:'Ciclopropano',nombre_en:'cyclopropane',formula:'C₃H₆',smiles:'C1CC1',peso:'42.08 g/mol',tipo:'Cicloalcano',descripcion:'3 carbonos en anillo. Ángulo de enlace ≈ 60° (enorme tensión de Baeyer). Muy reactivo. Sus orbitales solapan lateralmente (banana bonds).',color:'#ff9f1c',icono:'▲',score(f){let s=0;if(!f.esCerrado)return 0;if(f.numTrazos===1)s+=18;if(f.numCodos>=2&&f.numCodos<=3)s+=50;if(f.aspectRatio>=0.65&&f.aspectRatio<=1.4)s+=18;return s;}},
-  {id:'agua',nombre:'Agua',nombre_en:'water',formula:'H₂O',smiles:'O',peso:'18.02 g/mol',tipo:'Óxido de hidrógeno',descripcion:'Molécula angular: ángulo H-O-H ≈ 104.5°. Dipolo permanente. Solvente universal. Alta capacidad calorífica. Esencial para toda vida conocida.',color:'#48cae4',icono:'💧',score(f){let s=0;if(!f.esCerrado)s+=22;if(f.numCodos===1)s+=48;if(f.numTrazos<=2)s+=15;if(f.aspectRatio>=0.4&&f.aspectRatio<=2.8)s+=15;return s;}},
-  {id:'amoniaco',nombre:'Amoniaco',nombre_en:'ammonia',formula:'NH₃',smiles:'N',peso:'17.03 g/mol',tipo:'Hidruro de nitrógeno',descripcion:'Geometría piramidal trigonal. Par de e⁻ libres en N (base de Lewis). Proceso Haber-Bosch. Fundamental en fertilizantes nitrogenados.',color:'#9d4edd',icono:'🔺',score(f){let s=0;if(!f.esCerrado)s+=20;if(f.numCodos===2)s+=48;if(f.numTrazos===1)s+=15;if(f.aspectRatio>=0.5&&f.aspectRatio<=2.0)s+=17;return s;}},
-  {id:'co2',nombre:'Dióxido de Carbono',nombre_en:'carbon dioxide',formula:'CO₂',smiles:'O=C=O',peso:'44.01 g/mol',tipo:'Óxido de carbono',descripcion:'Molécula lineal: ángulo O=C=O = 180°. Dos dobles enlaces. Apolar. Gas de efecto invernadero. Producto de la respiración y combustión.',color:'#ef233c',icono:'↔',score(f){let s=0;if(f.aspectRatio>2.5)s+=50;if(f.aspectRatio>1.8)s+=15;if(f.numCodos<=1)s+=25;if(!f.esCerrado)s+=10;return s;}},
-  {id:'metano',nombre:'Metano',nombre_en:'methane',formula:'CH₄',smiles:'C',peso:'16.04 g/mol',tipo:'Alcano',descripcion:'Hidrocarburo más simple. Geometría tetraédrica (109.5°). Principal componente del gas natural. 25× más potente que el CO₂ como gas de efecto invernadero.',color:'#fb8500',icono:'✳',score(f){let s=0;if(f.numTrazos>=2&&f.numTrazos<=5)s+=35;if(!f.esCerrado)s+=20;if(f.aspectRatio>=0.4&&f.aspectRatio<=2.2)s+=20;if(f.numCodos>=2&&f.numCodos<=6)s+=25;return s;}},
-  {id:'hidrogeno',nombre:'Hidrógeno',nombre_en:'hydrogen',formula:'H₂',smiles:'[H][H]',peso:'2.02 g/mol',tipo:'Molécula diatómica',descripcion:'Molécula diatómica ligera. Participa en reacciones de hidrogenación y combustión; en química industrial es clave para amoniaco y combustibles.',color:'#e9ecef',icono:'H',score(){return 0;}},
-  {id:'oxigeno',nombre:'Oxígeno',nombre_en:'oxygen',formula:'O₂',smiles:'O=O',peso:'32.00 g/mol',tipo:'Molécula diatómica',descripcion:'Oxidante fundamental. Permite combustión y respiración; en reacciones orgánicas aparece como agente de oxidación o reactivo ambiental.',color:'#ef476f',icono:'O₂',score(){return 0;}},
-  {id:'nitrogeno',nombre:'Nitrógeno',nombre_en:'nitrogen',formula:'N₂',smiles:'N#N',peso:'28.01 g/mol',tipo:'Molécula diatómica',descripcion:'Gas mayoritario del aire. Su triple enlace lo vuelve muy estable; se activa industrialmente en el proceso Haber-Bosch.',color:'#7b2cbf',icono:'N₂',score(){return 0;}},
-  {id:'metanol',nombre:'Metanol',nombre_en:'methanol',formula:'CH₄O',smiles:'CO',peso:'32.04 g/mol',tipo:'Alcohol',descripcion:'Alcohol más simple. Es polar, inflamable y tóxico; sirve para explicar grupos hidroxilo y oxidación de alcoholes.',color:'#80ed99',icono:'MeOH',score(f){let s=0;if(f.esCerrado)return 0;if(f.numCodos===0)s+=30;else if(f.numCodos===1)s+=14;if(f.aspectRatio>=0.4&&f.aspectRatio<=1.2)s+=28;if(f.rectitud<1.8)s+=14;if(f.numTrazos<=2)s+=12;return s;}},
-  {id:'etanol',nombre:'Etanol',nombre_en:'ethanol',formula:'C₂H₆O',smiles:'CCO',peso:'46.07 g/mol',tipo:'Alcohol',descripcion:'Alcohol primario presente en bebidas alcohólicas y laboratorio. Puede oxidarse y reaccionar con ácidos carboxílicos para formar ésteres.',color:'#57cc99',icono:'EtOH',score(f){let s=0;if(f.esCerrado)return 0;if(f.numTrazos===1)s+=14;if(f.numCodos>=2&&f.numCodos<=3)s+=42;if(f.aspectRatio>=1.4&&f.aspectRatio<=4)s+=30;return s;}},
-  {id:'propanol',nombre:'1-Propanol',nombre_en:'1-propanol',formula:'C₃H₈O',smiles:'CCCO',peso:'60.10 g/mol',tipo:'Alcohol primario',descripcion:'Alcohol primario de tres carbonos. Es útil para comparar tamaño de cadena, polaridad y oxidación frente a alcoholes más pequeños.',color:'#38a3a5',icono:'PrOH',score(f){let s=0;if(f.esCerrado)return 0;if(f.numCodos===3)s+=38;if(f.aspectRatio>=2.2)s+=30;if(f.rectitud>1.15)s+=20;if(f.numTrazos===1)s+=12;return s;}},
-  {id:'acido_acetico',nombre:'Ácido acético',nombre_en:'acetic acid',formula:'C₂H₄O₂',smiles:'CC(=O)O',peso:'60.05 g/mol',tipo:'Ácido carboxílico',descripcion:'Principal ácido del vinagre. Reacciona con alcoholes en esterificación de Fischer para formar acetatos.',color:'#ff595e',icono:'AcOH',score(f){let s=0;if(f.esCerrado)return 0;if(f.numTrazos===1)s+=16;if(f.numCodos>=3&&f.numCodos<=4)s+=44;if(f.aspectRatio>=0.6&&f.aspectRatio<=1.8)s+=26;return s;}},
-  {id:'acido_formico',nombre:'Ácido fórmico',nombre_en:'formic acid',formula:'CH₂O₂',smiles:'C(=O)O',peso:'46.03 g/mol',tipo:'Ácido carboxílico',descripcion:'Ácido carboxílico más simple. Permite mostrar acidez, carbonilo y reacciones de esterificación.',color:'#ff6b6b',icono:'HCOOH',score(f){let s=0;if(f.esCerrado)return 0;if(f.numCodos>=2&&f.numCodos<=3)s+=32;if(f.aspectRatio>=0.5&&f.aspectRatio<=1.3)s+=26;if(f.rectitud>1.1)s+=14;if(f.numTrazos<=2)s+=12;return s;}},
-  {id:'acetona',nombre:'Acetona',nombre_en:'acetone',formula:'C₃H₆O',smiles:'CC(=O)C',peso:'58.08 g/mol',tipo:'Cetona',descripcion:'Cetona pequeña y solvente común. Su carbonilo ayuda a explicar polaridad y reactividad de aldehídos/cetonas.',color:'#f15bb5',icono:'C=O',score(f){let s=0;if(f.esCerrado)return 0;if(f.numTrazos>=1&&f.numTrazos<=2)s+=18;if(f.numCodos>=2&&f.numCodos<=3)s+=40;if(f.aspectRatio>=0.9&&f.aspectRatio<=2.6)s+=28;return s;}},
-  {id:'acetaldehido',nombre:'Acetaldehído',nombre_en:'acetaldehyde',formula:'C₂H₄O',smiles:'CC=O',peso:'44.05 g/mol',tipo:'Aldehído',descripcion:'Aldehído derivado de la oxidación parcial del etanol. Sirve para explicar etapas de oxidación de alcoholes primarios.',color:'#ff70a6',icono:'CHO',score(f){let s=0;if(f.esCerrado)return 0;if(f.numCodos>=1&&f.numCodos<=2)s+=30;if(f.aspectRatio>=0.9&&f.aspectRatio<=2.4)s+=26;if(f.rectitud>1.1)s+=14;if(f.numTrazos<=2)s+=12;return s;}},
-  {id:'acetato_etilo',nombre:'Acetato de etilo',nombre_en:'ethyl acetate',formula:'C₄H₈O₂',smiles:'CCOC(C)=O',peso:'88.11 g/mol',tipo:'Éster',descripcion:'Éster con olor frutal. Producto típico de ácido acético + etanol; buen ejemplo para la simulación de esterificación.',color:'#ffd166',icono:'Éster',score(f){let s=0;if(f.esCerrado)return 0;if(f.numTrazos===1)s+=12;if(f.numCodos>=4)s+=46;if(f.aspectRatio>=1.6)s+=30;return s;}},
-  {id:'eteno',nombre:'Eteno',nombre_en:'ethylene',formula:'C₂H₄',smiles:'C=C',peso:'28.05 g/mol',tipo:'Alqueno',descripcion:'Alqueno más simple. El doble enlace permite discutir adición, hidrogenación y polimerización.',color:'#4cc9f0',icono:'C=C',score(f){let s=0;if(f.esCerrado)return 0;if(f.numCodos===0)s+=28;else if(f.numCodos===1)s+=14;if(f.aspectRatio>=1.2&&f.aspectRatio<=1.95)s+=30;if(f.rectitud<1.4)s+=22;if(f.numTrazos<=2)s+=10;return s;}},
-  {id:'etino',nombre:'Etino',nombre_en:'acetylene',formula:'C₂H₂',smiles:'C#C',peso:'26.04 g/mol',tipo:'Alquino',descripcion:'Alquino pequeño con triple enlace. Útil para comparar saturación, geometría lineal y reactividad.',color:'#4895ef',icono:'C≡C',score(f){let s=0;if(f.esCerrado)return 0;if(f.numCodos===0)s+=34;if(f.rectitud<1.15)s+=30;if(f.aspectRatio>=1.9)s+=24;if(f.numTrazos===1)s+=10;return s;}},
-  {id:'propano',nombre:'Propano',nombre_en:'propane',formula:'C₃H₈',smiles:'CCC',peso:'44.10 g/mol',tipo:'Alcano',descripcion:'Alcano usado como combustible. Es buen reactivo visual para combustión y comparación con metano.',color:'#f77f00',icono:'C₃',score(f){let s=0;if(f.esCerrado)return 0;if(f.numCodos===2)s+=34;if(f.aspectRatio>=0.8&&f.aspectRatio<=1.5)s+=26;if(f.rectitud>1.15)s+=18;if(f.numTrazos===1)s+=10;return s;}},
-  {id:'cloruro_hidrogeno',nombre:'Cloruro de hidrógeno',nombre_en:'hydrogen chloride',formula:'HCl',smiles:'Cl',peso:'36.46 g/mol',tipo:'Ácido mineral',descripcion:'En agua forma ácido clorhídrico. Se usa para ilustrar neutralización ácido-base con hidróxidos.',color:'#bde0fe',icono:'HCl',score(){return 0;}},
-  {id:'hidroxido_sodio',nombre:'Hidróxido de sodio',nombre_en:'sodium hydroxide',formula:'NaOH',smiles:'[Na+].[OH-]',peso:'40.00 g/mol',tipo:'Base fuerte',descripcion:'Base fuerte usada en neutralización y saponificación. En solución aporta iones hidróxido.',color:'#90dbf4',icono:'NaOH',score(){return 0;}},
-  {id:'cloruro_sodio',nombre:'Cloruro de sodio',nombre_en:'sodium chloride',formula:'NaCl',smiles:'[Na+].[Cl-]',peso:'58.44 g/mol',tipo:'Sal iónica',descripcion:'Sal común. Producto de neutralización entre ácido clorhídrico e hidróxido de sodio.',color:'#caf0f8',icono:'NaCl',score(){return 0;}},
-  {id:'glucosa',nombre:'Glucosa',nombre_en:'glucose',formula:'C₆H₁₂O₆',smiles:'C(C1C(C(C(C(O1)O)O)O)O)O',peso:'180.16 g/mol',tipo:'Carbohidrato',descripcion:'Monosacárido esencial. Permite relacionar química orgánica, bioquímica y energía metabólica.',color:'#f9c74f',icono:'Glu',score(f){let s=0;if(!f.esCerrado)return 0;if(f.numTrazos<2)return 0;s+=40;if(f.numCodos>=4)s+=30;if(f.aspectRatio>=0.7&&f.aspectRatio<=1.4)s+=24;return s;}},
-  {id:'aspirina',nombre:'Aspirina',nombre_en:'aspirin',formula:'C₉H₈O₄',smiles:'CC(=O)Oc1ccccc1C(=O)O',peso:'180.16 g/mol',tipo:'Fármaco orgánico',descripcion:'Ácido acetilsalicílico. Contiene anillo aromático, éster y ácido carboxílico; buen ejemplo de grupos funcionales múltiples.',color:'#adb5bd',icono:'ASA',score(f){let s=0;if(!f.esCerrado)return 0;if(f.numTrazos<2)return 0;s+=38;if(f.aspectRatio>=1.35)s+=32;if(f.numCodos>=4)s+=18;return s;}},
+  {id:'benzeno',nombre:'Benceno',nombre_en:'benzene',formula:'C₆H₆',smiles:'c1ccccc1',peso:'78.11 g/mol',tipo:'Hidrocarburo aromático',descripcion:'Anillo hexagonal con 6 carbonos y electrones π deslocalizados. Molécula aromática fundamental. Cumple la Regla de Hückel (4n+2, n=1). Descubierto por Faraday en 1825.',color:'#3a86ff',icono:'⬡'},
+  {id:'ciclopentano',nombre:'Ciclopentano',nombre_en:'cyclopentane',formula:'C₅H₁₀',smiles:'C1CCCC1',peso:'70.13 g/mol',tipo:'Cicloalcano',descripcion:'Anillo de 5 carbonos saturado. Conf. envelope. Presente en esteroides y terpenos. Tensión angular menor que el ciclobutano (ángulo ≈ 108°).',color:'#06d6a0',icono:'⬠'},
+  {id:'ciclopropano',nombre:'Ciclopropano',nombre_en:'cyclopropane',formula:'C₃H₆',smiles:'C1CC1',peso:'42.08 g/mol',tipo:'Cicloalcano',descripcion:'3 carbonos en anillo. Ángulo de enlace ≈ 60° (enorme tensión de Baeyer). Muy reactivo. Sus orbitales solapan lateralmente (banana bonds).',color:'#ff9f1c',icono:'▲'},
+  {id:'agua',nombre:'Agua',nombre_en:'water',formula:'H₂O',smiles:'O',peso:'18.02 g/mol',tipo:'Óxido de hidrógeno',descripcion:'Molécula angular: ángulo H-O-H ≈ 104.5°. Dipolo permanente. Solvente universal. Alta capacidad calorífica. Esencial para toda vida conocida.',color:'#48cae4',icono:'💧'},
+  {id:'amoniaco',nombre:'Amoniaco',nombre_en:'ammonia',formula:'NH₃',smiles:'N',peso:'17.03 g/mol',tipo:'Hidruro de nitrógeno',descripcion:'Geometría piramidal trigonal. Par de e⁻ libres en N (base de Lewis). Proceso Haber-Bosch. Fundamental en fertilizantes nitrogenados.',color:'#9d4edd',icono:'🔺'},
+  {id:'co2',nombre:'Dióxido de Carbono',nombre_en:'carbon dioxide',formula:'CO₂',smiles:'O=C=O',peso:'44.01 g/mol',tipo:'Óxido de carbono',descripcion:'Molécula lineal: ángulo O=C=O = 180°. Dos dobles enlaces. Apolar. Gas de efecto invernadero. Producto de la respiración y combustión.',color:'#ef233c',icono:'↔'},
+  {id:'metano',nombre:'Metano',nombre_en:'methane',formula:'CH₄',smiles:'C',peso:'16.04 g/mol',tipo:'Alcano',descripcion:'Hidrocarburo más simple. Geometría tetraédrica (109.5°). Principal componente del gas natural. 25× más potente que el CO₂ como gas de efecto invernadero.',color:'#fb8500',icono:'✳'},
+  {id:'hidrogeno',nombre:'Hidrógeno',nombre_en:'hydrogen',formula:'H₂',smiles:'[H][H]',peso:'2.02 g/mol',tipo:'Molécula diatómica',descripcion:'Molécula diatómica ligera. Participa en reacciones de hidrogenación y combustión; en química industrial es clave para amoniaco y combustibles.',color:'#e9ecef',icono:'H'},
+  {id:'oxigeno',nombre:'Oxígeno',nombre_en:'oxygen',formula:'O₂',smiles:'O=O',peso:'32.00 g/mol',tipo:'Molécula diatómica',descripcion:'Oxidante fundamental. Permite combustión y respiración; en reacciones orgánicas aparece como agente de oxidación o reactivo ambiental.',color:'#ef476f',icono:'O₂'},
+  {id:'nitrogeno',nombre:'Nitrógeno',nombre_en:'nitrogen',formula:'N₂',smiles:'N#N',peso:'28.01 g/mol',tipo:'Molécula diatómica',descripcion:'Gas mayoritario del aire. Su triple enlace lo vuelve muy estable; se activa industrialmente en el proceso Haber-Bosch.',color:'#7b2cbf',icono:'N₂'},
+  {id:'metanol',nombre:'Metanol',nombre_en:'methanol',formula:'CH₄O',smiles:'CO',peso:'32.04 g/mol',tipo:'Alcohol',descripcion:'Alcohol más simple. Es polar, inflamable y tóxico; sirve para explicar grupos hidroxilo y oxidación de alcoholes.',color:'#80ed99',icono:'MeOH'},
+  {id:'etanol',nombre:'Etanol',nombre_en:'ethanol',formula:'C₂H₆O',smiles:'CCO',peso:'46.07 g/mol',tipo:'Alcohol',descripcion:'Alcohol primario presente en bebidas alcohólicas y laboratorio. Puede oxidarse y reaccionar con ácidos carboxílicos para formar ésteres.',color:'#57cc99',icono:'EtOH'},
+  {id:'propanol',nombre:'1-Propanol',nombre_en:'1-propanol',formula:'C₃H₈O',smiles:'CCCO',peso:'60.10 g/mol',tipo:'Alcohol primario',descripcion:'Alcohol primario de tres carbonos. Es útil para comparar tamaño de cadena, polaridad y oxidación frente a alcoholes más pequeños.',color:'#38a3a5',icono:'PrOH'},
+  {id:'acido_acetico',nombre:'Ácido acético',nombre_en:'acetic acid',formula:'C₂H₄O₂',smiles:'CC(=O)O',peso:'60.05 g/mol',tipo:'Ácido carboxílico',descripcion:'Principal ácido del vinagre. Reacciona con alcoholes en esterificación de Fischer para formar acetatos.',color:'#ff595e',icono:'AcOH'},
+  {id:'acido_formico',nombre:'Ácido fórmico',nombre_en:'formic acid',formula:'CH₂O₂',smiles:'C(=O)O',peso:'46.03 g/mol',tipo:'Ácido carboxílico',descripcion:'Ácido carboxílico más simple. Permite mostrar acidez, carbonilo y reacciones de esterificación.',color:'#ff6b6b',icono:'HCOOH'},
+  {id:'acetona',nombre:'Acetona',nombre_en:'acetone',formula:'C₃H₆O',smiles:'CC(=O)C',peso:'58.08 g/mol',tipo:'Cetona',descripcion:'Cetona pequeña y solvente común. Su carbonilo ayuda a explicar polaridad y reactividad de aldehídos/cetonas.',color:'#f15bb5',icono:'C=O'},
+  {id:'acetaldehido',nombre:'Acetaldehído',nombre_en:'acetaldehyde',formula:'C₂H₄O',smiles:'CC=O',peso:'44.05 g/mol',tipo:'Aldehído',descripcion:'Aldehído derivado de la oxidación parcial del etanol. Sirve para explicar etapas de oxidación de alcoholes primarios.',color:'#ff70a6',icono:'CHO'},
+  {id:'acetato_etilo',nombre:'Acetato de etilo',nombre_en:'ethyl acetate',formula:'C₄H₈O₂',smiles:'CCOC(C)=O',peso:'88.11 g/mol',tipo:'Éster',descripcion:'Éster con olor frutal. Producto típico de ácido acético + etanol; buen ejemplo para la simulación de esterificación.',color:'#ffd166',icono:'Éster'},
+  {id:'eteno',nombre:'Eteno',nombre_en:'ethylene',formula:'C₂H₄',smiles:'C=C',peso:'28.05 g/mol',tipo:'Alqueno',descripcion:'Alqueno más simple. El doble enlace permite discutir adición, hidrogenación y polimerización.',color:'#4cc9f0',icono:'C=C'},
+  {id:'etino',nombre:'Etino',nombre_en:'acetylene',formula:'C₂H₂',smiles:'C#C',peso:'26.04 g/mol',tipo:'Alquino',descripcion:'Alquino pequeño con triple enlace. Útil para comparar saturación, geometría lineal y reactividad.',color:'#4895ef',icono:'C≡C'},
+  {id:'propano',nombre:'Propano',nombre_en:'propane',formula:'C₃H₈',smiles:'CCC',peso:'44.10 g/mol',tipo:'Alcano',descripcion:'Alcano usado como combustible. Es buen reactivo visual para combustión y comparación con metano.',color:'#f77f00',icono:'C₃'},
+  {id:'cloruro_hidrogeno',nombre:'Cloruro de hidrógeno',nombre_en:'hydrogen chloride',formula:'HCl',smiles:'Cl',peso:'36.46 g/mol',tipo:'Ácido mineral',descripcion:'En agua forma ácido clorhídrico. Se usa para ilustrar neutralización ácido-base con hidróxidos.',color:'#bde0fe',icono:'HCl'},
+  {id:'hidroxido_sodio',nombre:'Hidróxido de sodio',nombre_en:'sodium hydroxide',formula:'NaOH',smiles:'[Na+].[OH-]',peso:'40.00 g/mol',tipo:'Base fuerte',descripcion:'Base fuerte usada en neutralización y saponificación. En solución aporta iones hidróxido.',color:'#90dbf4',icono:'NaOH'},
+  {id:'cloruro_sodio',nombre:'Cloruro de sodio',nombre_en:'sodium chloride',formula:'NaCl',smiles:'[Na+].[Cl-]',peso:'58.44 g/mol',tipo:'Sal iónica',descripcion:'Sal común. Producto de neutralización entre ácido clorhídrico e hidróxido de sodio.',color:'#caf0f8',icono:'NaCl'},
+  {id:'glucosa',nombre:'Glucosa',nombre_en:'glucose',formula:'C₆H₁₂O₆',smiles:'C(C1C(C(C(C(O1)O)O)O)O)O',peso:'180.16 g/mol',tipo:'Carbohidrato',descripcion:'Monosacárido esencial. Permite relacionar química orgánica, bioquímica y energía metabólica.',color:'#f9c74f',icono:'Glu'},
+  {id:'aspirina',nombre:'Aspirina',nombre_en:'aspirin',formula:'C₉H₈O₄',smiles:'CC(=O)Oc1ccccc1C(=O)O',peso:'180.16 g/mol',tipo:'Fármaco orgánico',descripcion:'Ácido acetilsalicílico. Contiene anillo aromático, éster y ácido carboxílico; buen ejemplo de grupos funcionales múltiples.',color:'#adb5bd',icono:'ASA'},
 ];
 
 // El CSV expandido se carga como un catálogo independiente. DB conserva solo las
 // plantillas que el reconocedor de trazos sabe puntuar de forma honesta.
-const DATASET_250=(window.PINCHDRAW_MOLECULES_250||[]).map(m=>({...m,score(){return 0;}}));
+const DATASET_250=(window.PINCHDRAW_MOLECULES_250||[]).map(m=>({...m}));
 
 // ── ELEMENTOS QUÍMICOS (fichas educativas) ──────────────────────────
 // Un átomo aislado no tiene forma que dibujar, así que estas fichas son de
@@ -871,8 +994,7 @@ const ELEMENTOS=(window.PINCHDRAW_ELEMENTOS||[]).map(e=>({
   tipo:e.familia,
   tipo_es:e.familia,
   forma:'Elemento químico',
-  trazo:`Símbolo ${e.simbolo} · Número atómico ${e.numero_atomico} · Masa ${e.masa_atomica} u · Grupo ${e.grupo}, período ${e.periodo}`,
-  score(){return 0;}
+  trazo:`Símbolo ${e.simbolo} · Número atómico ${e.numero_atomico} · Masa ${e.masa_atomica} u · Grupo ${e.grupo}, período ${e.periodo}`
 }));
 
 const CATALOGO_DB=[...ELEMENTOS,...DATASET_250];
@@ -939,8 +1061,7 @@ function buscarMolPorHistorial(item){
     tipo:'Desde historial local',
     descripcion:'Molécula recuperada desde el historial guardado localmente en el navegador.',
     color:'#8ecae6',
-    icono:'⚛',
-    score(){return 0;}
+    icono:'⚛'
   };
 }
 
@@ -1019,11 +1140,74 @@ function limpiarHistorial(){
 historial=leerHistorial();
 renderHistorial();
 
+// Ficha completa de cada molécula dibujable.
+//
+// Va aquí y no junto al resto del reconocedor porque necesita DB y
+// DATASET_250 ya inicializados: declarada antes, la lectura de DB caía en
+// su zona muerta temporal y la página moría al arrancar.
+//
+// Va aquí y no junto al resto del reconocedor porque necesita DB y
+// DATASET_250 ya inicializados: declarada antes, la lectura de DB caía en
+// su zona muerta temporal y la página moría al arrancar.
+//
+// La plantilla aporta el gesto y la explicación de por qué ese trazo
+// corresponde a esa molécula; la ficha del catálogo (o la básica de DB) aporta
+// peso, descripción y "¿para qué sirve?". Se resuelve una sola vez: detectar()
+// se llama unas 12 veces por segundo mientras se dibuja.
+const FICHAS_DIBUJABLES = (() => {
+  const porSmiles = new Map();
+  [...DB, ...DATASET_250].forEach(m => {
+    if (!porSmiles.has(m.smiles)) porSmiles.set(m.smiles, m);
+  });
+  const mapa = new Map();
+  (TRAZOS ? TRAZOS.PLANTILLAS : []).forEach(p => {
+    const base = porSmiles.get(p.smiles) || null;
+    mapa.set(p.id, {
+      ...(base || {}),
+      id: p.id,
+      nombre: p.nombre,
+      nombre_es: p.nombre,
+      nombre_en: p.nombre_en,
+      formula: p.formula,
+      smiles: p.smiles,
+      color: p.color,
+      icono: p.icono,
+      tipo: (base && (base.tipo_es || base.tipo)) || p.familia,
+      tipo_es: (base && base.tipo_es) || p.familia,
+      peso: (base && base.peso) || '—',
+      descripcion: (base && base.descripcion) || `${p.nombre}. ${p.porque}`,
+      uso: (base && base.uso) || '',
+      dibujable: true,
+      gesto: p.gesto,
+      porque: p.porque
+    });
+  });
+  return mapa;
+})();
+
+/*
+ * detectar() compara ÚNICAMENTE contra el conjunto dibujable.
+ *
+ * Las 250 del catálogo siguen existiendo en el buscador y en las fichas, pero
+ * ya no compiten por ganar un trazo: sólo 11 siluetas distintas se reparten
+ * esas 250 entradas (ver informes/colisiones_base.txt), así que elegir entre
+ * ellas por la forma del dibujo era echarlo a suertes.
+ */
 function detectar(strokes){
-  const f=extraerF(strokes);
-  if(!f) return null;
-  return{features:f,ranking:DB.map(m=>({...m,puntaje:m.score(f)})).sort((a,b)=>b.puntaje-a.puntaje)};
+  if(!TRAZOS) return null;
+  const res=TRAZOS.reconocer(strokes);
+  if(!res) return null;
+  return{
+    features:res.descriptor,
+    reconocida:res.reconocida,
+    ranking:res.ranking.map(p=>({
+      ...FICHAS_DIBUJABLES.get(p.id),
+      puntaje:p.puntaje,
+      distancia:p.distancia
+    }))
+  };
 }
+
 
 const catalogoModal = document.getElementById('catalogo-modal');
 const catalogoSearch = document.getElementById('catalogo-search');
@@ -1063,7 +1247,7 @@ function renderCatalogo(){
       </div>
       <div class="catalogo-tipo">${mol.tipo_es || mol.tipo}</div>
       <div class="catalogo-smiles">${mol.smiles}</div>
-      ${mol.trazo?`<div class="catalogo-trazo"><b>${mol.forma}</b><br>${mol.trazo}</div>`:''}
+      ${mol.dibujable&&mol.trazo_dibujable?`<div class="catalogo-trazo"><b>✏️ Se dibuja así:</b> ${mol.trazo_dibujable}<br><b>¿Por qué?</b> ${mol.porque_dibujable}</div>`:mol.forma?`<div class="catalogo-trazo"><b>Estructura:</b> ${mol.forma}<br><i>Ficha de consulta: esta molécula no se dibuja.</i></div>`:''}
       ${mol.uso?`<div class="catalogo-uso"><b>¿Para qué sirve?</b><br>${mol.uso}</div>`:''}
       ${mol.dato?`<div class="catalogo-uso"><b>Dato curioso:</b> ${mol.dato}</div>`:''}
     `;
@@ -1870,6 +2054,23 @@ new p5(p=>{
 
   function drawPinch(x,y){p.noFill();p.stroke(255,255,255,180);p.strokeWeight(1.5);p.circle(x,y,24);p.fill(255);p.noStroke();p.circle(x,y,7);}
 
+
+  /*
+   * Dos borrados seguidos = alguien peleándose con el trazo.
+   *
+   * El contador se reinicia en cuanto se termina un trazo, para que no salte
+   * por dos borrados separados por diez minutos de dibujo satisfactorio.
+   */
+  let borradosSeguidos=0;
+  function contarBorrado(){
+    borradosSeguidos++;
+    if(borradosSeguidos>=2){
+      borradosSeguidos=0;
+      mostrarAyudaDibujo('¿Cuesta dibujar?',
+        'Llevas dos borrados seguidos. Hay un modo de dibujo alternativo y un control que suaviza el temblor del trazo — están aquí:');
+    }
+  }
+
   function marcarCambio(){
     cambio=true;
     resultadoDeteccionCache=null;
@@ -1896,18 +2097,12 @@ new p5(p=>{
     return Math.max(0,Math.min(100,Math.round(Number(puntaje)||0)));
   }
 
+  // El nombre corto de la forma lo da la propia plantilla, así que el aviso
+  // en vivo y la guía dicen siempre lo mismo.
   function etiquetaForma(mol){
-    // Etiqueta corta para que el feedback diga algo como "Agua (V)".
-    const formas={
-      agua:'V', co2:'línea', metano:'cruz', benzeno:'hexágono', ciclopentano:'pentágono',
-      ciclopropano:'triángulo', amoniaco:'tridente', etanol:'zig-zag', acido_acetico:'Y',
-      acetona:'T', acetato_etilo:'zig-zag + rama', aspirina:'anillo + cola',
-      eteno:'línea corta', etino:'línea recta', metanol:'trazo corto',
-      propano:'zig-zag corto', propanol:'zig-zag largo', acido_formico:'gancho',
-      acetaldehido:'codo corto', glucosa:'anillo + ramas'
-    };
-    return formas[mol.id] || mol.icono || mol.formula || '';
+    return mol.gesto || mol.icono || mol.formula || '';
   }
+
 
   function actualizarTextoFeedback(res){
     if(!liveDetection) return;
@@ -1927,26 +2122,40 @@ new p5(p=>{
     liveDetection.className=conf>70?'ok':'warn';
   }
 
+  /*
+   * Trazos que ve el feedback en vivo: TODOS los terminados más el que se
+   * está dibujando ahora mismo.
+   *
+   * Antes sólo miraba uno. Dibujando la T de la acetona, mientras se trazaba
+   * la barra el feedback leía "una línea recta" y anunciaba otra molécula; el
+   * palo, que es lo que la distingue, no llegaba a contarse nunca. Ahora el
+   * aviso en vivo mide lo mismo que mide ANALIZAR.
+   */
   function trazoActivoParaFeedback(){
-    let pts=null;
+    const st=strokes.filter(s=>s.pts&&s.pts.length>=2).map(s=>({pts:s.pts}));
 
+    let pts=null;
     if(cur){
       // Compatibilidad con versiones donde el trazo activo se llame cur.pts.
       if(Array.isArray(cur.pts)&&cur.pts.length>=2) pts=cur.pts;
       else if(Array.isArray(cur.sm)&&cur.sm.length>=2) pts=rdp(cur.sm,parseInt(epsSlider.value));
       else if(Array.isArray(cur.raw)&&cur.raw.length>=2) pts=rdp(cur.raw,parseInt(epsSlider.value));
-    }else if(strokes.length){
-      pts=strokes[strokes.length-1].pts;
     }
+    if(pts&&pts.length>=2) st.push({pts});
 
-    return pts&&pts.length>=2?[{pts}]:null;
+    return st.length?st:null;
   }
 
+  // Resume el dibujo entero, no sólo su primer trazo: si no, al empezar el
+  // segundo trazo la firma no cambiaba y el feedback se quedaba congelado.
   function firmaTrazo(st){
-    const pts=st?.[0]?.pts||[];
-    if(!pts.length) return '';
-    const a=pts[0],b=pts[pts.length-1],m=pts[Math.floor(pts.length/2)];
-    return `${pts.length}|${Math.round(a.x)},${Math.round(a.y)}|${Math.round(m.x)},${Math.round(m.y)}|${Math.round(b.x)},${Math.round(b.y)}`;
+    if(!st||!st.length) return '';
+    return st.map(s=>{
+      const pts=s.pts||[];
+      if(!pts.length) return '';
+      const a=pts[0],b=pts[pts.length-1],m=pts[Math.floor(pts.length/2)];
+      return `${pts.length}|${Math.round(a.x)},${Math.round(a.y)}|${Math.round(m.x)},${Math.round(m.y)}|${Math.round(b.x)},${Math.round(b.y)}`;
+    }).join('/');
   }
 
   // El feedback en vivo se limita a ~12 veces por segundo en lugar de 60.
@@ -2007,6 +2216,7 @@ new p5(p=>{
   }
 
   function finalize(){
+    borradosSeguidos=0;
     if(!cur||cur.raw.length<2) return;
     strokes.push({pts:rdp(cur.raw,parseInt(epsSlider.value))});
     cur=null;rS();marcarCambio();redrawAll();
@@ -2076,19 +2286,30 @@ new p5(p=>{
     const res=detectarSiCambio();
     if(!res){stateBadge.textContent='ERROR';return;}
     const top=res.ranking[0],alts=res.ranking.slice(1,4).filter(m=>m.puntaje>15);
-    if(top.puntaje<20){
+    /*
+     * Nada se parece lo suficiente. Antes aquí salía un alert() con una lista
+     * de moléculas que ya no se dibujan (pentágono, acetato de etilo) y sin
+     * ninguna salida: sólo "no se reconoció". Ahora se dice qué formas hay de
+     * verdad y se ofrecen el modo lápiz y la corrección, que es lo que a esta
+     * persona probablemente le está faltando.
+     */
+    if(!res.reconocida||top.puntaje<20){
       stateBadge.textContent='❓ NO RECONOCIDA';stateBadge.className='';
-      alert('No se reconoció ninguna molécula.\n\nDibuja:\n⬡ Hexágono → Benceno\n⬠ Pentágono → Ciclopentano\n∨ Ángulo V → Agua\n─ Línea → CO₂\n✳ Cruz (2 trazos) → Metano\nZ Zig-zag corto → Etanol\nY Forma de Y → Ácido acético\nT Forma de T → Acetona\nZig-zag largo + ramita → Acetato de etilo\n\nO usa el botón ⚛ CATÁLOGO para elegir una molécula visualmente.');
+      const cercana=top&&top.nombre?` Lo más parecido era ${top.nombre} (${top.gesto}).`:'';
+      mostrarAyudaDibujo('No reconocí esa forma',
+        `Hay ${TRAZOS.PLANTILLAS.length} formas que sé leer y la tuya no encaja en ninguna.${cercana} Mira la guía para ver el trazo, o prueba con el otro modo de dibujo.`);
       return;
     }
     stateBadge.textContent='● DETECTADO';stateBadge.className='';
     mostrarMolecula(top,top.puntaje,alts);
   });
 
-  document.getElementById('btn-undo').addEventListener('click',()=>{if(strokes.length){strokes.pop();marcarCambio();redrawAll();actualizarFeedbackEnVivo(true);}});
-  if(btnBorrarPunto) btnBorrarPunto.addEventListener('click',borrarUltimoSegmento);
+  document.getElementById('btn-undo').addEventListener('click',()=>{if(strokes.length){strokes.pop();marcarCambio();redrawAll();actualizarFeedbackEnVivo(true);contarBorrado();}});
+  if(btnBorrarPunto) btnBorrarPunto.addEventListener('click',()=>{const habia=strokes.length>0||!!cur;borrarUltimoSegmento();if(habia) contarBorrado();});
   if(btnExport) btnExport.addEventListener('click',exportarDibujoPNG);
-  document.getElementById('btn-clear').addEventListener('click',()=>{strokes=[];cur=null;marcarCambio();dc.clear();btnA.disabled=true;actualizarFeedbackEnVivo(true);});
+  // Sólo cuenta como borrado si de verdad había algo que borrar: pulsar
+  // LIMPIAR sobre un lienzo vacío no es señal de que nadie esté sufriendo.
+  document.getElementById('btn-clear').addEventListener('click',()=>{const habia=strokes.length>0||!!cur;strokes=[];cur=null;marcarCambio();dc.clear();btnA.disabled=true;actualizarFeedbackEnVivo(true);if(habia) contarBorrado();});
 
   // ── Rejilla de fondo pre-renderizada ──────────────────────────
   // Antes se dibujaban ~55 líneas sueltas en CADA frame (más de 3000 llamadas
@@ -2266,389 +2487,418 @@ function showGuiaTab(tab){
   });
 }
 
-// ── Datos de moléculas dibujables ─────────────────────────────
-const GUIA_MOLS = [
-  {
-    color:'#48cae4', icono:'💧', nombre:'Agua', formula:'H₂O',
-    draw:'✏️ Dibuja una V con un solo trazo',
-    tip:'⚠️ El trazo queda ABIERTO — NO cierres los extremos.\n   Solo 1 esquina (el vértice de la V).',
-    fact:'🌍 ¡Tu cuerpo tiene un 70% de agua! Sin ella no existiría ningún ser vivo en la Tierra.',
-    distincion:''
-  },
-  {
-    color:'#ef233c', icono:'↔', nombre:'Dióxido de Carbono', formula:'CO₂',
-    draw:'✏️ Dibuja una línea recta horizontal',
-    tip:'💡 Cuanto más larga y recta, mejor.\n   Intenta que sea más ancha que alta.',
-    fact:'🌬️ ¡Lo produces cada vez que exhalas! Las plantas lo convierten en azúcar usando la luz del sol (fotosíntesis).',
-    distincion:''
-  },
-  {
-    color:'#fb8500', icono:'✳', nombre:'Metano', formula:'CH₄',
-    draw:'✏️ Dibuja una cruz con 2 trazos separados',
-    tip:'💡 Son 2 trazos DISTINTOS que se cruzan.\n   No es un solo trazo continuo.',
-    fact:'🔥 ¡Es el gas de la cocina! También lo producen las vacas al digerir su comida.',
-    distincion:''
-  },
-  {
-    color:'#57cc99', icono:'🍷', nombre:'Etanol', formula:'C₂H₅OH',
-    draw:'✏️ Dibuja una línea con forma de Z o zig-zag (3 tramos)',
-    tip:'💡 Es una cadenita: traza-esquina-traza-esquina-traza.\n   Como una escalerita corta. NO la cierres.\n   2 esquinas suaves, más ancho que alto.',
-    fact:'🍇 ¡Es el alcohol de las uvas! Se forma cuando las levaduras se comen el azúcar de las frutas. También se usa como gel desinfectante de manos.',
-    distincion:'Etanol = zig-zag abierto largo. Agua = V corta con 1 esquina.'
-  },
-  {
-    color:'#ff595e', icono:'🍋', nombre:'Ácido acético', formula:'CH₃COOH',
-    draw:'✏️ Dibuja una Y (o pata de pollo): una línea que se abre en dos al final',
-    tip:'💡 Empieza con un trazo y al final ábrelo en dos ramitas (una V pequeña).\n   Las 2 ramitas de arriba son los oxígenos del grupo ácido.',
-    fact:'🥗 ¡Es lo que hace agrio al vinagre! Por eso el vinagre pica en la nariz. Se usa en ensaladas y para hacer encurtidos.',
-    distincion:'Ácido acético = 1 tallo que se bifurca en Y (grupo -COOH al final).'
-  },
-  {
-    color:'#f15bb5', icono:'💅', nombre:'Acetona', formula:'CH₃COCH₃',
-    draw:'✏️ Dibuja una T o un tridente: una línea horizontal con un palito hacia arriba en el centro',
-    tip:'💡 Los dos brazos horizontales son los CH₃.\n   El palito de arriba (=O) es el oxígeno del centro.\n   Parece una T o una cruz sin la parte de abajo.',
-    fact:'💅 ¡Es lo que usan para quitar el esmalte de uñas! Huele muy fuerte y se evapora rapidísimo. Tu cuerpo también fabrica un poquito.',
-    distincion:'Acetona = forma de T (carbonilo central C=O). Metano = cruz de 2 trazos separados.'
-  },
-  {
-    color:'#ffd166', icono:'🍏', nombre:'Acetato de etilo', formula:'CH₃COOC₂H₅',
-    draw:'✏️ Dibuja un zig-zag largo (4 o más tramos) con una ramita hacia arriba',
-    tip:'💡 Es la cadena más larga: como el etanol pero con más tramos\n   y una ramita (=O) saliendo hacia arriba en medio.\n   Cuantos más tramos, mejor. NO lo cierres.',
-    fact:'🍏 ¡Huele a manzana verde y quitaesmalte! Es un éster: se fabrica juntando el vinagre (ácido acético) con el alcohol (etanol). ¡Los perfumes y sabores frutales están llenos de ésteres!',
-    distincion:'Acetato de etilo = zig-zag LARGO (4+ tramos) con ramita. Etanol = zig-zag corto (3 tramos) sin ramita.'
-  },
-  {
-    color:'#06d6a0', icono:'⬠', nombre:'Ciclopentano', formula:'C₅H₁₀',
-    draw:'✏️ Dibuja un pentágono CERRADO (5 lados)',
-    tip:'⚠️ El inicio y el final del trazo SE TOCAN.\n   5 lados, como una casa vista desde arriba.',
-    fact:'🧬 ¡Está en tus hormonas! El colesterol y la testosterona tienen anillos de ciclopentano en su estructura.',
-    distincion:''
-  },
-  {
-    color:'#3a86ff', icono:'⬡', nombre:'Benceno', formula:'C₆H₆',
-    draw:'✏️ Dibuja un hexágono CERRADO (6 lados)',
-    tip:'⚠️ El inicio y el final del trazo SE TOCAN.\n   6 lados, como un panal de abejas.',
-    fact:'🍯 Su forma hexagonal es exactamente igual a la de los panales. Tiene electrones "flotando" por todo el anillo — ¡es mágico!',
-    distincion:''
-  },
-];
-
-// Mini-canvas de guía: genera trazos de ejemplo normalizados para cada molécula.
-let guiaAnimFrame=null;
-let guiaSeleccionadaId=null;
-
-function puntosGuia(m,w,h){
-  const sx=x=>Math.round(x*w), sy=y=>Math.round(y*h);
-  const poly=(arr)=>arr.map(([x,y])=>({x:sx(x),y:sy(y)}));
-  const poligono=(cx,cy,rx,ry,lados=6,rot=-Math.PI/2)=>{
-    const pts=[];
-    for(let i=0;i<lados;i++){
-      const a=rot+(Math.PI*2*i/lados);
-      pts.push([cx+Math.cos(a)*rx,cy+Math.sin(a)*ry]);
-    }
-    pts.push(pts[0]);
-    return poly(pts);
+// ── LA GUÍA MUESTRA SÓLO LAS MOLÉCULAS DIBUJABLES ─────────────
+//
+// Antes esta pantalla listaba las 9 fichas básicas, los 118 elementos y las
+// 250 del dataset en una sola lista, todas con su "trazo sugerido". Pero de
+// esas 250 sólo hay 11 siluetas distintas, así que la guía enseñaba a dibujar
+// decenas de moléculas con el mismo hexágono y ninguna de ellas se podía
+// reconocer después. Ahora:
+//
+//   · arriba, las 17 formas que el reconocedor sabe distinguir, con su gesto
+//     y la explicación de por qué ESA forma es ESA molécula;
+//   · debajo, y sólo al buscar, el resto del catálogo, marcado como consulta.
+const GUIA_DIBUJABLES = (TRAZOS ? TRAZOS.PLANTILLAS : []).map((p, i) => {
+  const ficha = FICHAS_DIBUJABLES.get(p.id) || {};
+  return {
+    ...ficha,
+    guiaId: `dibujable-${p.id}`,
+    plantillaId: p.id,
+    trazosGuia: p.trazos,
+    draw: `✏️ ${p.gesto}`,
+    porque: p.porque,
+    fact: ficha.uso || '',
+    source: 'dibujable'
   };
-  const n=m.nombre;
-  if(n==='Agua') return [poly([[0.24,0.25],[0.50,0.78],[0.76,0.25]])];
-  if(n==='Dióxido de Carbono') return [poly([[0.15,0.52],[0.85,0.52]])];
-  if(n==='Metano') return [poly([[0.25,0.50],[0.75,0.50]]), poly([[0.50,0.22],[0.50,0.78]])];
-  if(n==='Etanol') return [poly([[0.15,0.68],[0.34,0.35],[0.54,0.68],[0.75,0.35]])];
-  if(n==='Ácido acético') return [poly([[0.18,0.78],[0.48,0.52],[0.74,0.28]]), poly([[0.48,0.52],[0.75,0.76]])];
-  if(n==='Acetona') return [poly([[0.20,0.56],[0.80,0.56]]), poly([[0.50,0.56],[0.50,0.20]])];
-  if(n==='Acetato de etilo') return [poly([[0.10,0.72],[0.24,0.42],[0.38,0.72],[0.52,0.42],[0.66,0.72],[0.84,0.42]]), poly([[0.52,0.42],[0.52,0.16]])];
-  if(n==='Ciclopentano') return [poligono(0.50,0.50,0.31,0.33,5)];
-  if(n==='Benceno') return [poligono(0.50,0.50,0.27,0.34,6)];
+});
 
-  const forma=String(m.forma||'').toLocaleLowerCase('es');
-  const icono=String(m.iconoClave||'').toUpperCase();
-  const ramas=Math.max(0,Number(m.ramificaciones)||0);
+// Mini-canvas de guía: la animación usa los MISMOS puntos que el reconocedor
+// compara, así que lo que la guía enseña a dibujar es literalmente lo que se
+// mide. Antes eran dos listas de coordenadas distintas y podían divergir.
+let guiaAnimFrame = null;
+let guiaSeleccionadaId = null;
 
-  if(forma.includes('componentes')||forma.includes('sal')){
-    return [
-      poly([[0.08,0.65],[0.20,0.38],[0.32,0.65]]),
-      poligono(0.58,0.51,0.15,0.27,6),
-      poly([[0.80,0.35],[0.91,0.66]])
-    ];
-  }
-  if(forma.includes('tres anillos')||forma.includes('varios anillos')||icono==='3R'){
-    return [
-      poligono(0.28,0.52,0.16,0.29,6),
-      poligono(0.50,0.52,0.16,0.29,6),
-      poligono(0.72,0.52,0.16,0.29,6)
-    ];
-  }
-  if(forma.includes('dos anillos')||icono==='2R'){
-    return [poligono(0.39,0.52,0.20,0.32,6),poligono(0.63,0.52,0.20,0.32,6)];
-  }
-  if(forma.includes('anillo')||['HEX','R5','R6'].includes(icono)){
-    const lados=(forma.includes('cinco')||icono==='R5')?5:6;
-    const trazos=[poligono(0.50,0.51,0.25,0.34,lados)];
-    if(ramas>0) trazos.push(poly([[0.50,0.17],[0.50,0.05]]));
-    if(ramas>1) trazos.push(poly([[0.72,0.66],[0.87,0.77]]));
-    if(ramas>2) trazos.push(poly([[0.28,0.66],[0.13,0.77]]));
-    return trazos;
-  }
-  if(forma.includes('muy ramificada')||icono==='TREE'){
-    return [
-      poly([[0.08,0.66],[0.22,0.38],[0.36,0.66],[0.50,0.38],[0.64,0.66],[0.78,0.38],[0.92,0.66]]),
-      poly([[0.22,0.38],[0.18,0.12]]), poly([[0.50,0.38],[0.50,0.10]]),
-      poly([[0.64,0.66],[0.70,0.90]]), poly([[0.78,0.38],[0.86,0.14]])
-    ];
-  }
-  if(forma.includes('ramificada')||icono==='BR'){
-    return [
-      poly([[0.10,0.68],[0.28,0.36],[0.46,0.68],[0.64,0.36],[0.84,0.68]]),
-      poly([[0.28,0.36],[0.26,0.12]]), poly([[0.64,0.36],[0.75,0.14]])
-    ];
-  }
-  if(forma.includes('larga')){
-    return [poly([[0.07,0.68],[0.20,0.34],[0.33,0.68],[0.46,0.34],[0.59,0.68],[0.72,0.34],[0.88,0.68]])];
-  }
-  if(forma.includes('lineal')||forma.includes('recta')||icono==='LINE'){
-    return [poly([[0.12,0.53],[0.88,0.53]])];
-  }
-  return [poly([[0.15,0.67],[0.35,0.35],[0.55,0.67],[0.78,0.35]])];
+function puntosGuia(m, w, h) {
+  const escalar = pts => pts.map(p => ({ x: Math.round(p.x * w), y: Math.round(p.y * h) }));
+  if (Array.isArray(m.trazosGuia)) return m.trazosGuia.map(escalar);
+  // Ficha de consulta: no se dibuja, así que no hay trazo que animar.
+  return [];
 }
 
-function longitudTrazo(pts){
-  let total=0;
-  for(let i=1;i<pts.length;i++) total+=Math.hypot(pts[i].x-pts[i-1].x,pts[i].y-pts[i-1].y);
+function longitudTrazo(pts) {
+  let total = 0;
+  for (let i = 1; i < pts.length; i++) total += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
   return total;
 }
 
-function dibujarParcial(ctx,pts,dist,color){
-  if(pts.length<2||dist<=0) return;
+function dibujarParcial(ctx, pts, dist, color) {
+  if (pts.length < 2 || dist <= 0) return;
   ctx.beginPath();
-  ctx.moveTo(pts[0].x,pts[0].y);
-  let restante=dist;
-  for(let i=1;i<pts.length;i++){
-    const a=pts[i-1],b=pts[i];
-    const seg=Math.hypot(b.x-a.x,b.y-a.y);
-    if(restante>=seg){
-      ctx.lineTo(b.x,b.y);
-      restante-=seg;
-    }else{
-      const t=seg?restante/seg:0;
-      ctx.lineTo(a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t);
+  ctx.moveTo(pts[0].x, pts[0].y);
+  let restante = dist;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i];
+    const seg = Math.hypot(b.x - a.x, b.y - a.y);
+    if (restante >= seg) {
+      ctx.lineTo(b.x, b.y);
+      restante -= seg;
+    } else {
+      const t = seg ? restante / seg : 0;
+      ctx.lineTo(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t);
       break;
     }
   }
-  ctx.strokeStyle=color;
+  ctx.strokeStyle = color;
   ctx.stroke();
 }
 
-function mostrarEjemploGuia(m){
-  const canvas=document.getElementById('guia-demo-canvas');
-  const title=document.getElementById('guia-demo-title');
-  const formula=document.getElementById('guia-demo-formula');
-  if(!canvas) return;
-  title.textContent=`Ejemplo: ${m.nombre}`;
-  formula.textContent=m.formula;
+/*
+ * Velocidad de la animación del trazo guía.
+ *
+ * Antes era fija en 1,9 s para el dibujo entero: demasiado rápido para seguirlo
+ * con la mano, y sobre todo demasiado rápido para una figura de tres trazos,
+ * que se comía el mismo tiempo que una línea recta. Ahora:
+ *
+ *   · la duración se reparte por trazo, así que una cruz tarda el doble que
+ *     una línea y cada trazo se ve al mismo ritmo;
+ *   · la persona elige el ritmo, porque un valor único no le sirve a todo el
+ *     mundo, y la elección se recuerda entre sesiones;
+ *   · hay una pausa al final de cada vuelta para poder mirar el resultado
+ *     antes de que empiece otra vez.
+ */
+const GUIA_VELOCIDAD_KEY = 'pinchdraw_velocidad_guia_v1';
+const GUIA_VELOCIDADES = [
+  { id: 'lenta',  etiqueta: '🐢 Lenta',  msPorTrazo: 2600 },
+  { id: 'normal', etiqueta: '🚶 Normal', msPorTrazo: 1600 },
+  { id: 'rapida', etiqueta: '🐇 Rápida', msPorTrazo: 900 }
+];
+const GUIA_PAUSA_FINAL = 900;
 
-  guiaSeleccionadaId=m.guiaId||m.nombre;
-  document.querySelectorAll('.gm-card').forEach(c=>c.classList.remove('selected'));
-  const selected=Array.from(document.querySelectorAll('.gm-card')).find(c=>c.dataset.guiaId===guiaSeleccionadaId);
-  if(selected) selected.classList.add('selected');
+function leerVelocidadGuia() {
+  const guardada = localStorage.getItem(GUIA_VELOCIDAD_KEY);
+  return GUIA_VELOCIDADES.find(v => v.id === guardada) || GUIA_VELOCIDADES[0];
+}
+let guiaVelocidad = leerVelocidadGuia();
+let guiaMolActual = null;
 
-  if(guiaAnimFrame) cancelAnimationFrame(guiaAnimFrame);
-  const ctx=canvas.getContext('2d');
-  const trazos=puntosGuia(m,canvas.width,canvas.height);
-  const longitudes=trazos.map(longitudTrazo);
-  const total=longitudes.reduce((a,b)=>a+b,0);
-  const duracion=1900;
-  let inicio=null;
+function mostrarEjemploGuia(m) {
+  const canvas = document.getElementById('guia-demo-canvas');
+  const title = document.getElementById('guia-demo-title');
+  const formula = document.getElementById('guia-demo-formula');
+  const porque = document.getElementById('guia-demo-porque');
+  if (!canvas) return;
 
-  function frame(ts){
-    if(!inicio) inicio=ts;
-    const ciclo=((ts-inicio)%duracion)/duracion;
-    const avance=total*ciclo;
-    ctx.clearRect(0,0,canvas.width,canvas.height);
+  guiaMolActual = m;
+  title.textContent = m.nombre_es || m.nombre;
+  formula.textContent = m.formula || '';
+  // La explicación de POR QUÉ esa forma es esa molécula va junto a la
+  // animación: es lo que convierte el gesto en química y no en un símbolo
+  // que memorizar.
+  if (porque) porque.textContent = m.porque || '';
 
-    // Fondo simple de práctica, sin depender de p5.
-    ctx.fillStyle='#05070b';
-    ctx.fillRect(0,0,canvas.width,canvas.height);
-    ctx.strokeStyle='rgba(255,255,255,0.05)';
-    ctx.lineWidth=1;
-    for(let x=20;x<canvas.width;x+=24){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,canvas.height);ctx.stroke();}
-    for(let y=18;y<canvas.height;y+=24){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(canvas.width,y);ctx.stroke();}
+  guiaSeleccionadaId = m.guiaId || m.nombre;
+  document.querySelectorAll('.gm-card').forEach(c => c.classList.remove('selected'));
+  const selected = Array.from(document.querySelectorAll('.gm-card'))
+    .find(c => c.dataset.guiaId === guiaSeleccionadaId);
+  if (selected) selected.classList.add('selected');
 
-    ctx.lineCap='round';
-    ctx.lineJoin='round';
-    ctx.lineWidth=9;
-    let restante=avance;
-    trazos.forEach((pts,i)=>{
-      const usar=Math.max(0,Math.min(longitudes[i],restante));
-      dibujarParcial(ctx,pts,usar,'rgba(255,255,255,0.13)');
-      restante-=longitudes[i];
-    });
-    ctx.lineWidth=3;
-    restante=avance;
-    trazos.forEach((pts,i)=>{
-      const usar=Math.max(0,Math.min(longitudes[i],restante));
-      dibujarParcial(ctx,pts,usar,m.color||'#afd870');
-      restante-=longitudes[i];
-    });
-    guiaAnimFrame=requestAnimationFrame(frame);
+  if (guiaAnimFrame) cancelAnimationFrame(guiaAnimFrame);
+  const ctx = canvas.getContext('2d');
+  const trazos = puntosGuia(m, canvas.width, canvas.height);
+
+  function fondo() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#0d1420';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+    ctx.lineWidth = 1;
+    for (let x = 20; x < canvas.width; x += 24) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke(); }
+    for (let y = 18; y < canvas.height; y += 24) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke(); }
   }
-  guiaAnimFrame=requestAnimationFrame(frame);
-}
 
-// Construir las nueve tarjetas educativas y las 250 moléculas del dataset.
-const GUIA_ICONOS={
-  HEX:'⬡',R5:'⬠',R6:'⬡','2R':'⬢','3R':'⬢',
-  Z3:'⌁',BR:'⌁',TREE:'⌁',LINE:'↔',ION:'±'
-};
-
-function textoGuiaSeguro(valor){
-  return String(valor??'').replace(/[&<>"']/g,c=>({
-    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
-  })[c]);
-}
-
-function normalizarBusquedaGuia(valor){
-  return String(valor||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('es');
-}
-
-function adaptarMolDatasetGuia(m){
-  const adecuacion=m.adecuacion||'Sin clasificar';
-  const ayuda=adecuacion==='Alta'
-    ? 'Buen candidato para reconocer directamente por su silueta.'
-    : adecuacion==='Media'
-      ? 'Conviene marcar bien esquinas, cierres y ramificaciones.'
-      : 'Es una estructura compleja: usa el catálogo si el trazo no basta.';
-  return {
-    ...m,
-    guiaId:`dataset-${m.id||m.numero}`,
-    iconoClave:m.icono,
-    icono:GUIA_ICONOS[String(m.icono||'').toUpperCase()]||'⌁',
-    color:/^#[0-9a-f]{6}$/i.test(m.color||'')?m.color:'#8ecae6',
-    draw:`✏️ ${m.trazo||'Dibuja la silueta principal de la molécula.'}`,
-    tip:`💡 Forma: ${m.forma||'estructura molecular'}\n   Trazos sugeridos: ${m.trazos_sugeridos||1} · Dificultad: ${m.dificultad||'—'}`,
-    fact:`🧪 Familia: ${m.tipo_es||m.tipo||m.categoria||'molécula del dataset'}. Adecuación del trazo: ${adecuacion}. ${ayuda}`,
-    // "¿Para qué sirve?" y el nombre internacional, igual que en el catálogo.
-    uso:m.uso||'',
-    nombreOriginal:(m.nombre && m.nombre!==(m.nombre_es||m.nombre))?m.nombre:'',
-    source:'dataset'
-  };
-}
-
-// Ficha de elemento adaptada a la guía (no se dibuja: es de consulta).
-function adaptarElementoGuia(e){
-  return {
-    ...e,
-    guiaId:`elemento-${e.id}`,
-    iconoClave:e.simbolo,
-    icono:e.simbolo,
-    color:/^#[0-9a-f]{6}$/i.test(e.color||'')?e.color:'#8ecae6',
-    draw:`🔬 ${e.descripcion}`,
-    tip:`💡 Símbolo: ${e.simbolo} · Número atómico: ${e.numero_atomico}\n   Masa: ${e.masa_atomica} u · Grupo ${e.grupo}, período ${e.periodo}`,
-    fact:`🧪 Familia: ${e.familia}. Un átomo aislado no tiene silueta que dibujar: esta ficha es de consulta.`,
-    uso:e.uso||'',
-    nombreOriginal:e.nombre_en||'',
-    source:'elemento'
-  };
-}
-
-GUIA_MOLS.forEach((m,i)=>{m.guiaId=`basica-${i}`;m.source='basica';});
-const GUIA_DATASET=DATASET_250.map(adaptarMolDatasetGuia);
-const GUIA_ELEMENTOS=ELEMENTOS.map(adaptarElementoGuia);
-const GUIA_TODAS=[...GUIA_MOLS,...GUIA_ELEMENTOS,...GUIA_DATASET];
-
-function renderListaGuia(filtro=''){
-  const lista=document.getElementById('guia-list');
-  const count=document.getElementById('guia-count');
-  if(!lista||!count) return;
-  const query=normalizarBusquedaGuia(filtro);
-  const visibles=GUIA_TODAS.filter(m=>{
-    if(!query) return true;
-    return [m.nombre,m.nombre_es,m.nombre_en,m.simbolo,m.formula,m.tipo,m.tipo_es,
-            m.categoria,m.forma,m.trazo,m.numero,m.uso]
-      .some(v=>normalizarBusquedaGuia(v).includes(query));
-  });
-
-  count.textContent=`${visibles.length} de ${GUIA_TODAS.length} guías · ${GUIA_ELEMENTOS.length} elementos · ${GUIA_DATASET.length} del dataset`;
-  lista.innerHTML='';
-  if(!visibles.length){
-    lista.innerHTML='<div class="gm-empty">No encontré esa molécula. Prueba con el nombre, fórmula, familia o forma del trazo.</div>';
+  if (!trazos.length) {
+    fondo();
+    ctx.fillStyle = '#93a4b8';
+    ctx.font = '12px "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Ficha de consulta: no se dibuja', canvas.width / 2, canvas.height / 2);
+    ctx.textAlign = 'start';
     return;
   }
 
-  const fragment=document.createDocumentFragment();
-  visibles.forEach(m=>{
-    const card=document.createElement('div');
-    card.className='gm-card'+(guiaSeleccionadaId===m.guiaId?' selected':'');
-    card.dataset.guiaId=m.guiaId;
-    const color=/^#[0-9a-f]{6}$/i.test(m.color||'')?m.color:'#8ecae6';
-    const source=m.source==='dataset'?'<span class="gm-source">DATASET 250</span>'
-                :m.source==='elemento'?'<span class="gm-source">ELEMENTO</span>'
-                :'<span class="gm-source">BÁSICA</span>';
-    const detalle=m.source==='dataset'
-      ? `<div class="gm-meta">#${textoGuiaSeguro(m.numero)} · ${textoGuiaSeguro(m.modo_reconocimiento||'Guía por forma')}</div>`
-      :m.source==='elemento'
-      ? `<div class="gm-meta">Z=${textoGuiaSeguro(m.numero_atomico)} · Ficha de consulta</div>`
-      :'';
-    // Nombre en español; el original se muestra debajo si difiere.
-    const titulo=m.nombre_es||m.nombre;
-    const original=m.nombreOriginal
-      ? `<div class="gm-meta" style="color:#5a6472">${textoGuiaSeguro(m.nombreOriginal)}</div>` : '';
-    card.innerHTML=`
-      <div class="gm-top">
-        <div class="gm-ico" style="background:${color}18;border:1px solid ${color}44;">${textoGuiaSeguro(m.icono)}</div>
-        <div>
-          <div class="gm-name" style="color:${color}">${textoGuiaSeguro(titulo)} ${source}</div>
-          <div class="gm-form">${textoGuiaSeguro(m.formula)}</div>
-          ${original}
-          ${detalle}
-        </div>
+  const longitudes = trazos.map(longitudTrazo);
+  const total = longitudes.reduce((a, b) => a + b, 0);
+  const duracion = guiaVelocidad.msPorTrazo * trazos.length;
+  const ciclo = duracion + GUIA_PAUSA_FINAL;
+  let inicio = null;
+
+  function frame(ts) {
+    if (inicio === null) inicio = ts;
+    const t = (ts - inicio) % ciclo;
+    // Durante la pausa final el dibujo se queda completo en pantalla.
+    const avance = total * Math.min(1, t / duracion);
+
+    fondo();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    // Primero la silueta completa en gris: se ve a dónde va el trazo antes
+    // de que llegue, que es lo que hace falta para poder seguirlo con la mano.
+    ctx.lineWidth = 2;
+    trazos.forEach(pts => dibujarParcial(ctx, pts, Infinity, 'rgba(255,255,255,0.16)'));
+
+    ctx.lineWidth = 10;
+    let restante = avance;
+    trazos.forEach((pts, i) => {
+      dibujarParcial(ctx, pts, Math.max(0, Math.min(longitudes[i], restante)), (m.color || '#afd870') + '33');
+      restante -= longitudes[i];
+    });
+    ctx.lineWidth = 3.5;
+    restante = avance;
+    trazos.forEach((pts, i) => {
+      dibujarParcial(ctx, pts, Math.max(0, Math.min(longitudes[i], restante)), m.color || '#afd870');
+      restante -= longitudes[i];
+    });
+
+    // Punta viva: marca dónde estaría el dedo en este instante.
+    if (avance < total) {
+      let queda = avance;
+      for (let i = 0; i < trazos.length; i++) {
+        if (queda <= longitudes[i]) {
+          let acumulado = 0;
+          const pts = trazos[i];
+          for (let k = 1; k < pts.length; k++) {
+            const seg = Math.hypot(pts[k].x - pts[k - 1].x, pts[k].y - pts[k - 1].y);
+            if (acumulado + seg >= queda) {
+              const f = seg ? (queda - acumulado) / seg : 0;
+              ctx.fillStyle = '#fff';
+              ctx.beginPath();
+              ctx.arc(pts[k - 1].x + (pts[k].x - pts[k - 1].x) * f,
+                      pts[k - 1].y + (pts[k].y - pts[k - 1].y) * f, 4.5, 0, Math.PI * 2);
+              ctx.fill();
+              break;
+            }
+            acumulado += seg;
+          }
+          break;
+        }
+        queda -= longitudes[i];
+      }
+    }
+
+    // Número de trazos: es la señal más importante y conviene decirla.
+    ctx.fillStyle = '#93a4b8';
+    ctx.font = '11px "Courier New", monospace';
+    ctx.fillText(trazos.length === 1 ? '1 trazo' : `${trazos.length} trazos`, 8, canvas.height - 8);
+
+    guiaAnimFrame = requestAnimationFrame(frame);
+  }
+  guiaAnimFrame = requestAnimationFrame(frame);
+}
+
+function repetirEjemploGuia() {
+  if (guiaMolActual) mostrarEjemploGuia(guiaMolActual);
+}
+
+function cambiarVelocidadGuia(id) {
+  guiaVelocidad = GUIA_VELOCIDADES.find(v => v.id === id) || GUIA_VELOCIDADES[0];
+  localStorage.setItem(GUIA_VELOCIDAD_KEY, guiaVelocidad.id);
+  document.querySelectorAll('.guia-vel').forEach(b =>
+    b.classList.toggle('activa', b.dataset.vel === guiaVelocidad.id));
+  repetirEjemploGuia();
+}
+
+// ── Fichas de consulta (no se dibujan) ────────────────────────
+const GUIA_ICONOS = {
+  HEX: '⬡', R5: '⬠', R6: '⬡', '2R': '⬢', '3R': '⬢',
+  Z3: '⌁', BR: '⌁', TREE: '⌁', LINE: '↔', ION: '±'
+};
+
+function textoGuiaSeguro(valor) {
+  return String(valor ?? '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[c]);
+}
+
+function normalizarBusquedaGuia(valor) {
+  return String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es');
+}
+
+/*
+ * Una molécula del dataset que NO es dibujable no recibe trazo sugerido.
+ *
+ * Antes sí lo recibía, y por eso el catálogo repetía el mismo "dibuja un
+ * hexágono" en decenas de fichas: un trazo que además no servía, porque el
+ * reconocedor nunca iba a devolver esa molécula. Ahora la ficha describe su
+ * estructura y dice claramente que se consulta, no se dibuja.
+ */
+function adaptarMolDatasetGuia(m) {
+  return {
+    ...m,
+    guiaId: `dataset-${m.id || m.numero}`,
+    iconoClave: m.icono,
+    icono: GUIA_ICONOS[String(m.icono || '').toUpperCase()] || '⌁',
+    color: /^#[0-9a-f]{6}$/i.test(m.color || '') ? m.color : '#8ecae6',
+    draw: `🔎 Ficha de consulta · estructura: ${m.forma || 'molécula del dataset'}`,
+    porque: '',
+    fact: '',
+    uso: m.uso || '',
+    nombreOriginal: (m.nombre && m.nombre !== (m.nombre_es || m.nombre)) ? m.nombre : '',
+    source: 'dataset'
+  };
+}
+
+function adaptarElementoGuia(e) {
+  return {
+    ...e,
+    guiaId: `elemento-${e.id}`,
+    iconoClave: e.simbolo,
+    icono: e.simbolo,
+    color: /^#[0-9a-f]{6}$/i.test(e.color || '') ? e.color : '#8ecae6',
+    draw: `🔎 Ficha de consulta · Z=${e.numero_atomico} · ${e.familia}`,
+    porque: '',
+    fact: '',
+    uso: e.uso || '',
+    nombreOriginal: e.nombre_en || '',
+    source: 'elemento'
+  };
+}
+
+const GUIA_ELEMENTOS = ELEMENTOS.map(adaptarElementoGuia);
+// Las 8 del dataset que sí son dibujables ya salen arriba; no se repiten abajo.
+const GUIA_CONSULTA = [
+  ...GUIA_ELEMENTOS,
+  ...DATASET_250.filter(m => !m.dibujable).map(adaptarMolDatasetGuia)
+];
+
+function tarjetaGuia(m) {
+  const card = document.createElement('div');
+  card.className = 'gm-card' + (guiaSeleccionadaId === m.guiaId ? ' selected' : '')
+    + (m.source === 'dibujable' ? ' gm-dibujable' : ' gm-consulta');
+  card.dataset.guiaId = m.guiaId;
+  const color = /^#[0-9a-f]{6}$/i.test(m.color || '') ? m.color : '#8ecae6';
+  const etiqueta = m.source === 'dibujable'
+    ? '<span class="gm-source gm-source-dib">SE DIBUJA</span>'
+    : m.source === 'elemento'
+      ? '<span class="gm-source">ELEMENTO · CONSULTA</span>'
+      : '<span class="gm-source">DATASET · CONSULTA</span>';
+  const titulo = m.nombre_es || m.nombre;
+  const original = m.nombreOriginal
+    ? `<div class="gm-meta">${textoGuiaSeguro(m.nombreOriginal)}</div>` : '';
+  card.innerHTML = `
+    <div class="gm-top">
+      <div class="gm-ico" style="background:${color}22;border:1px solid ${color}66;color:${color}">${textoGuiaSeguro(m.icono)}</div>
+      <div>
+        <div class="gm-name" style="color:${color}">${textoGuiaSeguro(titulo)} ${etiqueta}</div>
+        <div class="gm-form">${textoGuiaSeguro(m.formula)}</div>
+        ${original}
       </div>
-      <div class="gm-draw">${textoGuiaSeguro(m.draw)}</div>
-      <div class="gm-tip">${textoGuiaSeguro(m.tip).replace(/\n/g,'<br>')}</div>
-      <div class="gm-fact">${textoGuiaSeguro(m.fact)}</div>
-      ${m.uso?`<div class="gm-uso">💡 <b>¿Para qué sirve?</b> ${textoGuiaSeguro(m.uso)}</div>`:''}
-      ${m.dato?`<div class="gm-uso">✨ <b>Dato curioso:</b> ${textoGuiaSeguro(m.dato)}</div>`:''}`;
-    card.addEventListener('click',()=>mostrarEjemploGuia(m));
-    fragment.appendChild(card);
-  });
+    </div>
+    <div class="gm-draw">${textoGuiaSeguro(m.draw)}</div>
+    ${m.porque ? `<div class="gm-porque"><b>¿Por qué esa forma?</b> ${textoGuiaSeguro(m.porque)}</div>` : ''}
+    ${m.uso ? `<div class="gm-uso"><b>¿Para qué sirve?</b> ${textoGuiaSeguro(m.uso)}</div>` : ''}
+    ${m.dato ? `<div class="gm-uso"><b>Dato curioso:</b> ${textoGuiaSeguro(m.dato)}</div>` : ''}`;
+  card.addEventListener('click', () => mostrarEjemploGuia(m));
+  return card;
+}
+
+function renderListaGuia(filtro = '') {
+  const lista = document.getElementById('guia-list');
+  const count = document.getElementById('guia-count');
+  if (!lista || !count) return;
+  const query = normalizarBusquedaGuia(filtro);
+  const coincide = m => !query || [m.nombre, m.nombre_es, m.nombre_en, m.simbolo, m.formula,
+    m.tipo, m.tipo_es, m.categoria, m.forma, m.draw, m.numero, m.uso, m.porque]
+    .some(v => normalizarBusquedaGuia(v).includes(query));
+
+  const dibujables = GUIA_DIBUJABLES.filter(coincide);
+  // Las fichas de consulta son 368: sólo aparecen al buscar, o la lista
+  // enterraría lo único que se puede dibujar.
+  const consulta = query ? GUIA_CONSULTA.filter(coincide) : [];
+
+  count.textContent = query
+    ? `${dibujables.length} dibujables · ${consulta.length} fichas de consulta`
+    : `${GUIA_DIBUJABLES.length} moléculas que puedes dibujar · escribe para buscar entre las otras ${GUIA_CONSULTA.length}`;
+
+  lista.innerHTML = '';
+  const fragment = document.createDocumentFragment();
+
+  if (dibujables.length) {
+    const h = document.createElement('div');
+    h.className = 'gm-seccion';
+    h.innerHTML = '✏️ <b>SE DIBUJAN</b> — el reconocedor sabe distinguir estas formas';
+    fragment.appendChild(h);
+    dibujables.forEach(m => fragment.appendChild(tarjetaGuia(m)));
+  }
+
+  if (consulta.length) {
+    const h = document.createElement('div');
+    h.className = 'gm-seccion gm-seccion-consulta';
+    h.innerHTML = '🔎 <b>SÓLO CONSULTA</b> — fichas del catálogo. No se dibujan: '
+      + 'su forma no se distingue a mano alzada de la de otras muchas.';
+    fragment.appendChild(h);
+    consulta.slice(0, 120).forEach(m => fragment.appendChild(tarjetaGuia(m)));
+    if (consulta.length > 120) {
+      const mas = document.createElement('div');
+      mas.className = 'gm-empty';
+      mas.textContent = `…y ${consulta.length - 120} fichas más. Afina la búsqueda.`;
+      fragment.appendChild(mas);
+    }
+  }
+
+  if (!dibujables.length && !consulta.length) {
+    lista.innerHTML = '<div class="gm-empty">No encontré esa molécula. Prueba con el nombre, la fórmula o la familia.</div>';
+    return;
+  }
   lista.appendChild(fragment);
 }
 
-// Construir tarjetas de moléculas con mini-canvas animado.
-(function buildMolCards(){
-  const body=document.getElementById('guia-tab-dibujar');
-  body.innerHTML=`<div id="guia-demo-panel">
+// Construir el panel de la pestaña "cómo dibujar".
+(function buildMolCards() {
+  const body = document.getElementById('guia-tab-dibujar');
+  const botonesVel = GUIA_VELOCIDADES.map(v =>
+    `<button type="button" class="guia-vel${v.id === guiaVelocidad.id ? ' activa' : ''}" data-vel="${v.id}">${v.etiqueta}</button>`
+  ).join('');
+
+  body.innerHTML = `<div id="guia-demo-panel">
     <div id="guia-demo-head">
       <span id="guia-demo-title">Ejemplo visual</span>
       <span id="guia-demo-formula">—</span>
     </div>
-    <canvas id="guia-demo-canvas" width="350" height="105"></canvas>
-    <div id="guia-demo-help">Haz clic en una molécula para ver una animación del trazo recomendado.</div>
+    <canvas id="guia-demo-canvas" width="350" height="130"></canvas>
+    <div id="guia-demo-porque"></div>
+    <div id="guia-demo-controles">
+      <button type="button" id="guia-repetir">↻ Repetir</button>
+      <span id="guia-vel-label">Ritmo:</span>
+      ${botonesVel}
+    </div>
+    <div id="guia-demo-help">Toca una molécula de la lista para ver cómo se traza.</div>
   </div>
-  <div style="font-family:'Courier New',monospace;font-size:9px;color:#4a6a3a;line-height:1.6;padding:6px 8px;background:#0a120a;border-radius:6px;border:1px solid #1a2a1a;margin-bottom:10px;">
-    🔑 <b style="color:#7aba4a">CLAVE PARA DISTINGUIR:</b><br>
-    V corta abierta = <span style="color:#48cae4">Agua</span> &nbsp;|&nbsp;
-    Línea recta = <span style="color:#ef233c">CO₂</span><br>
-    Cruz 2 trazos = <span style="color:#fb8500">CH₄</span> &nbsp;|&nbsp;
-    Forma de T = <span style="color:#f15bb5">Acetona</span><br>
-    Zig-zag corto = <span style="color:#57cc99">Etanol</span> &nbsp;|&nbsp;
-    Cerrado 5 lados = <span style="color:#06d6a0">Ciclopentano</span> &nbsp;|&nbsp;
-    Cerrado 6 = <span style="color:#3a86ff">Benceno</span>
+  <div id="guia-clave">
+    🔑 <b>LA CLAVE ES CUÁNTOS TRAZOS HACES</b><br>
+    Levantar el dedo entre trazo y trazo es la señal más fiable que tiene el
+    sistema, porque la decides tú. El esqueleto va en el primer trazo y cada
+    grupo funcional añade uno más.
   </div>
   <div class="gm-tools">
-    <input id="guia-search" type="search" placeholder="Buscar molécula, fórmula, familia o forma…" autocomplete="off">
+    <input id="guia-search" type="search" placeholder="Buscar molécula, fórmula o familia…" autocomplete="off">
     <div id="guia-count"></div>
   </div>
   <div id="guia-list"></div>`;
 
-  const search=document.getElementById('guia-search');
-  // Mismo debounce que en el catálogo: la guía tiene aún más tarjetas.
-  let guiaDebounce=null;
-  search.addEventListener('input',()=>{
+  document.getElementById('guia-repetir').addEventListener('click', repetirEjemploGuia);
+  document.querySelectorAll('.guia-vel').forEach(b =>
+    b.addEventListener('click', () => cambiarVelocidadGuia(b.dataset.vel)));
+
+  const search = document.getElementById('guia-search');
+  // Mismo debounce que en el catálogo: al buscar entran cientos de fichas.
+  let guiaDebounce = null;
+  search.addEventListener('input', () => {
     clearTimeout(guiaDebounce);
-    guiaDebounce=setTimeout(()=>renderListaGuia(search.value),140);
+    guiaDebounce = setTimeout(() => renderListaGuia(search.value), 140);
   });
   renderListaGuia();
-  if(GUIA_TODAS.length) mostrarEjemploGuia(GUIA_TODAS[0]);
+  if (GUIA_DIBUJABLES.length) mostrarEjemploGuia(GUIA_DIBUJABLES[0]);
 })();
 
 // ── Datos de reacciones (explicación para niños) ────────────────
