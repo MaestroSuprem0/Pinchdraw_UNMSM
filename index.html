@@ -88,7 +88,7 @@
     #eps-row{display:flex;align-items:center;gap:6px;}
     #eps-slider{width:100px;accent-color:#888;cursor:pointer;}
     #eps-value{font-family:'Courier New',monospace;font-size:10px;color:#666;width:32px;text-align:right;}
-    #hint{position:fixed;bottom:100px;left:50%;transform:translateX(-50%);font-family:'Courier New',monospace;font-size:14px;color:#ff8a8a;letter-spacing:1px;white-space:nowrap;pointer-events:none;z-index:20;text-align:center;line-height:1.6;}
+    #hint{position:fixed;bottom:68px;left:50%;transform:translateX(-50%);font-family:'Courier New',monospace;font-size:14px;color:#ff8a8a;letter-spacing:1px;white-space:nowrap;pointer-events:none;z-index:20;text-align:center;line-height:1.6;}
     #buttons{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);display:flex;gap:10px;z-index:20;flex-wrap:wrap;justify-content:center;max-width:calc(100vw - 230px);}
     .btn{font-family:'Courier New',monospace;font-size:11px;letter-spacing:2px;padding:7px 18px;background:rgba(0,0,0,0.8);border-radius:6px;cursor:pointer;transition:all 0.2s;color:#666;border:1px solid #333;}
     .btn:hover{border-color:#bbb;color:#fff;}
@@ -309,29 +309,138 @@
     #pubchem-link:hover{color:#4a9eff;}
 
     /* ── SECCIÓN GNN ─────────────────────────────────── */
-    #gnn-section{margin:14px 0;border:1px solid #1a2a1a;border-radius:10px;overflow:hidden;}
-    #gnn-header{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:#0a130a;border-bottom:1px solid #1a2a1a;cursor:pointer;}
-    #gnn-header-label{font-size:9px;color:#4a9e4a;letter-spacing:2px;}
-    #gnn-badge{font-size:9px;padding:2px 8px;border-radius:10px;border:1px solid #2a4a2a;color:#4a7a4a;letter-spacing:1px;transition:all 0.3s;}
+
+
+    /* ── Banda de incertidumbre de la solubilidad ─────────────────────
+       La pista de solubilidad es más alta que las demás porque tiene que
+       alojar la banda y la marca. El rayado dice "esto es una región", no
+       un nivel: un relleno liso se lee como cantidad. */
+    /* Dos clases a propósito: .gnn-track se declara más abajo con height:4px y,
+       a igual especificidad, ganaría por ir después. La banda necesita alto
+       suficiente para verse proyectada. */
+    .gnn-track.gnn-track-sol{height:16px;position:relative;background:#0d1a0d;}
+    #gnn-logs-banda{position:absolute;top:0;bottom:0;pointer-events:none;
+      background:repeating-linear-gradient(135deg,
+        rgba(255,255,255,0.30) 0 3px, rgba(255,255,255,0.06) 3px 7px);
+      border-left:2px solid rgba(255,255,255,0.65);
+      border-right:2px solid rgba(255,255,255,0.65);}
+    /* El valor puntual, dentro de su banda. */
+    #gnn-logs-marca{position:absolute;top:-2px;bottom:-2px;width:3px;
+      background:#fff;box-shadow:0 0 5px rgba(0,0,0,0.9);pointer-events:none;}
+    .gnn-escala{display:flex;justify-content:space-between;font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+      font-size:11px;color:#8fa88f;margin-top:2px;}
+    /* ── Nivel de discriminación de cada clasificador ─────────────── */
+    .gnn-sep{color:#6f8a9e;}
+    .gnn-nivel{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:9px;
+      font-size:11px;letter-spacing:0.3px;cursor:help;vertical-align:middle;
+      background:rgba(120,170,220,0.14);border:1px solid #4a7fa8;color:#b9d4e8;}
+    .gnn-nivel.debil{background:rgba(230,170,60,0.18);border-color:#c08a2a;color:#f0c878;}
+    /* ── Métrica del modelo bajo cada estimación ──────────────────────
+       12 px y 6,9:1 de contraste sobre el fondo del panel. Es letra pequeña
+       a propósito —es un dato secundario— pero tiene que leerse proyectada,
+       que es donde va a hacer falta. */
+    .gnn-metrica{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:12px;color:#9fc0d8;line-height:1.5;
+      margin-top:3px;padding:5px 8px;background:rgba(120,170,220,0.10);
+      border-left:2px solid #4a7fa8;border-radius:0 4px 4px 0;cursor:help;}
+    .gnn-metrica b{color:#d3e6f5;font-weight:bold;}
+    /* Nota de limitación: permanente, discreta, no descartable. */
+    #gnn-nota{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:12px;color:#c9b98a;line-height:1.55;
+      margin-top:2px;padding:8px 10px;background:rgba(200,170,90,0.10);
+      border-top:1px solid #4a4128;border-radius:6px;}
+
+    /* ── Modo profesional ─────────────────────────────────────────────
+       Todo lo marcado .solo-pro se oculta en modo niño. El modo niño es el
+       de por defecto y no gana ni pierde nada respecto a lo que había. */
+    body[data-modo="nino"] .solo-pro{display:none !important;}
+    #btn-modo{position:fixed;bottom:18px;right:246px;z-index:25;
+      font-family:'Courier New',monospace;font-size:14px;letter-spacing:1px;
+      padding:7px 15px;background:rgba(0,0,0,0.88);border-radius:6px;cursor:pointer;
+      border:1px solid #7a5aa0;color:#c9a6e8;transition:all 0.2s;}
+    #btn-modo:hover{border-color:#c9a6e8;color:#fff;box-shadow:0 0 10px rgba(201,166,232,0.25);}
+    body[data-modo="pro"] #btn-modo{border-color:#c9a6e8;color:#e6d4f5;
+      background:rgba(90,60,120,0.55);}
+
+    /* Entrada manual de SMILES: quien sabe química no debería tener que dibujar. */
+    #smiles-panel{position:fixed;bottom:56px;left:50%;transform:translateX(-50%);
+      z-index:26;display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+      justify-content:center;background:rgba(10,14,22,0.94);border:1px solid #3a4a5e;
+      border-radius:10px;padding:9px 12px;max-width:min(620px,94vw);
+      font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;}
+    #smiles-panel label{font-size:14px;color:#a8b6c6;letter-spacing:1px;}
+    #smiles-input{flex:1;min-width:220px;background:#0b1017;border:1px solid #3a4a5e;
+      border-radius:6px;color:#e8edf2;font-family:'Courier New',monospace;
+      font-size:15px;padding:8px 10px;outline:none;}
+    #smiles-input:focus{border-color:#8fd06a;box-shadow:0 0 0 2px rgba(122,186,74,0.15);}
+    #smiles-btn{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;padding:8px 14px;border-radius:6px;
+      cursor:pointer;background:rgba(175,216,112,0.20);border:1px solid #8fd06a;color:#eaf5d8;}
+    #smiles-btn:hover{background:rgba(175,216,112,0.34);}
+    #smiles-aviso{width:100%;font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;line-height:1.5;
+      color:#f0b860;}
+    #smiles-aviso.ok{color:#a8cfa8;}
+
+    /* Tabla de los 12 ensayos Tox21. Sin emojis: son datos. */
+    #tox-tabla-wrap{margin-top:10px;background:#0d160d;border:1px solid #2f4a2f;
+      border-radius:8px;overflow:hidden;}
+    #tox-tabla-cap{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;color:#a8cfa8;padding:8px 10px;
+      background:#162616;border-bottom:1px solid #2f4a2f;line-height:1.5;}
+    table.tox-tabla{width:100%;border-collapse:collapse;font-family:'Courier New',monospace;}
+    table.tox-tabla th{font-size:14px;color:#a8cfa8;text-align:left;padding:6px 10px;
+      border-bottom:1px solid #2f4a2f;font-weight:normal;letter-spacing:0.5px;}
+    table.tox-tabla td{font-size:14px;color:#dfe7ef;padding:5px 10px;
+      border-bottom:1px solid #1c2c1c;}
+    table.tox-tabla tr:last-child td{border-bottom:none;}
+    table.tox-tabla td.num{text-align:right;width:5.5em;}
+    table.tox-tabla td.barra{width:38%;}
+    .tox-mini{height:9px;border-radius:3px;background:#22331f;overflow:hidden;}
+    .tox-mini i{display:block;height:100%;border-radius:3px;}
+    table.tox-tabla tr.sobre td{color:#ffd9a0;}
+    table.tox-tabla tr.sobre td:first-child::after{content:' ●';color:#ff9f45;}
+
+    /* Ficha técnica */
+    #ficha-tecnica{margin:12px 0;background:#131a26;border:1px solid #2b3a4d;
+      border-radius:10px;padding:12px;}
+    #ficha-tecnica h4{margin:0 0 8px;font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:15px;
+      color:#cbd8e6;font-weight:bold;letter-spacing:0.5px;}
+    .ficha-fila{display:flex;justify-content:space-between;gap:12px;
+      padding:4px 0;border-bottom:1px solid #22303f;}
+    .ficha-fila:last-child{border-bottom:none;}
+    .ficha-k{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;color:#a8b6c6;}
+    .ficha-v{font-family:'Courier New',monospace;font-size:14px;color:#f2f5f8;
+      text-align:right;word-break:break-all;}
+
+    /* Todas las posibilidades de reacción */
+    #reaccion-todas{margin-top:12px;}
+    #reaccion-todas h4{margin:0 0 8px;font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:15px;
+      color:#e0c98a;font-weight:bold;}
+    .rx-posibilidad{background:#171208;border:1px solid #4a3a18;border-radius:8px;
+      padding:9px 11px;margin-bottom:8px;}
+    .rx-posibilidad-n{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;color:#e0c98a;
+      margin-bottom:5px;letter-spacing:0.5px;}
+    .rx-posibilidad-s{font-family:'Courier New',monospace;font-size:14px;
+      color:#dfe7ef;line-height:1.6;word-break:break-all;}
+    #gnn-section{margin:14px 0;border:1px solid #2f4a2f;border-radius:10px;overflow:hidden;}
+    #gnn-header{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:#162616;border-bottom:1px solid #2f4a2f;cursor:pointer;}
+    #gnn-header-label{font-size:15px;font-weight:bold;color:#8fd06a;letter-spacing:1.5px;}
+    #gnn-badge{font-size:12px;padding:3px 9px;border-radius:10px;border:1px solid #4a7a4a;color:#a8c8a8;letter-spacing:1px;transition:all 0.3s;}
     #gnn-badge.cargando{color:#ffbe0b;border-color:#554400;animation:gnn-pulse 1s infinite;}
     #gnn-badge.ok{color:#06d6a0;border-color:#064a3a;}
-    #gnn-badge.error{color:#555;border-color:#333;}
+    #gnn-badge.error{color:#d89a9a;border-color:#6a3a3a;}
     @keyframes gnn-pulse{0%,100%{opacity:1}50%{opacity:0.3}}
-    #gnn-body{padding:12px;display:flex;flex-direction:column;gap:10px;}
+    #gnn-body{padding:14px;display:flex;flex-direction:column;gap:14px;background:#111a11;}
     .gnn-prop{display:flex;flex-direction:column;gap:4px;}
     .gnn-prop-header{display:flex;justify-content:space-between;align-items:baseline;}
-    .gnn-prop-label{font-size:8px;color:#4a7a4a;letter-spacing:2px;}
-    .gnn-prop-val{font-size:11px;color:#aaa;font-weight:bold;}
-    .gnn-prop-interp{font-size:9px;color:#555;letter-spacing:1px;}
+    .gnn-prop-label{font-size:14px;color:#a8cfa8;letter-spacing:1px;}
+    .gnn-prop-val{font-size:17px;color:#f2f5f8;font-weight:bold;}
+    .gnn-prop-interp{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;color:#b9c6d6;letter-spacing:0;line-height:1.5;}
     .gnn-track{height:4px;background:#0d1a0d;border-radius:3px;overflow:hidden;margin-top:2px;}
     .gnn-bar{height:100%;border-radius:3px;transition:width 0.7s ease;}
-    .gnn-divider{height:1px;background:#1a2a1a;}
+    .gnn-divider{height:1px;background:#2f4a2f;}
     .gnn-pred-row{display:flex;justify-content:space-between;align-items:center;}
-    .gnn-pred-tag{font-size:9px;padding:2px 8px;border-radius:8px;letter-spacing:1px;}
+    .gnn-pred-tag{font-size:14px;padding:3px 10px;border-radius:8px;letter-spacing:0.5px;}
     .gnn-pred-tag.ok{background:#063a1a;color:#06d6a0;border:1px solid #0a5a2a;}
     .gnn-pred-tag.warn{background:#3a2a00;color:#ffbe0b;border:1px solid #5a4a00;}
-    .gnn-pred-tag.bad{background:#3a0a0a;color:#ef233c;border:1px solid #5a1010;}
-    #gnn-servidor-off{font-size:9px;color:#333;letter-spacing:1px;padding:8px;text-align:center;}
+    .gnn-pred-tag.bad{background:#3a0a0a;color:#ff6b6b;border:1px solid #8a2020;}
+    #gnn-servidor-off{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;color:#b9c6d6;letter-spacing:0;padding:10px;text-align:center;line-height:1.5;}
 
     /* ── REACTIVOS PARA REACCIÓN (chips + botones en el modal) ── */
     #reaccion-pick-row{display:flex;gap:8px;margin-top:10px;}
@@ -467,6 +576,16 @@
   <div id="camera-preview-label">📷 CÁMARA</div>
 </div>
 <!-- ── BOTÓN GUÍA ──────────────────────────────────── -->
+<button id="btn-modo" type="button" title="Cambia entre la vista sencilla y la vista con todos los datos">🧒 MODO NIÑO</button>
+<!-- Entrada manual de SMILES: sólo en modo profesional. El endpoint
+     /validar-smiles existía desde el principio y nadie lo llamaba. -->
+<div id="smiles-panel" class="solo-pro">
+  <label for="smiles-input">SMILES</label>
+  <input id="smiles-input" type="text" spellcheck="false" autocomplete="off"
+         placeholder="CC(=O)Oc1ccccc1C(=O)O">
+  <button id="smiles-btn" type="button">Analizar</button>
+  <div id="smiles-aviso"></div>
+</div>
 <button id="btn-guia" onclick="toggleGuia()">📚 GUÍA</button>
 <!-- Historial persistente: abre una barra lateral con las moléculas detectadas -->
 <button id="btn-historial" onclick="toggleHistorial()">🕘 HISTORIAL</button>
@@ -572,6 +691,8 @@
         <div class="mol-prop"><span class="mol-prop-label">Nombre IUPAC</span><span class="mol-prop-val" id="mol-iupac">—</span></div>
       </div>
     </div>
+    <!-- Ficha técnica: todo esto ya se calculaba y se tiraba. -->
+    <div id="ficha-tecnica" class="solo-pro"></div>
     <div id="mol-desc">—</div>
 
     <!-- VISOR 3D -->
@@ -600,7 +721,7 @@
     <!-- ═══ SECCIÓN GNN ═══════════════════════════════════ -->
     <div id="gnn-section">
       <div id="gnn-header" onclick="toggleGNN()">
-        <span id="gnn-header-label">🧬 PREDICCIONES GNN</span>
+        <span id="gnn-header-label">🧬 ESTIMACIONES GNN</span>
         <span id="gnn-badge">—</span>
       </div>
       <div id="gnn-body">
@@ -615,9 +736,17 @@
             <span class="gnn-prop-label">💧 SOLUBILIDAD (logS)</span>
             <span class="gnn-prop-val" id="gnn-logs">—</span>
           </div>
-          <div class="gnn-track"><div class="gnn-bar" id="gnn-logs-bar"></div></div>
+          <div class="gnn-track gnn-track-sol">
+            <div class="gnn-bar" id="gnn-logs-bar"></div>
+            <!-- Banda logS ± RMSE y valor puntual. Se ocultan si no
+                 llega el RMSE: entonces la barra se pinta como antes. -->
+            <div id="gnn-logs-banda" style="display:none"></div>
+            <div id="gnn-logs-marca" style="display:none"></div>
+          </div>
+          <div class="gnn-escala" id="gnn-sol-escala" style="display:none"><span>logS −8</span><span>+2</span></div>
           <span class="gnn-prop-interp" id="gnn-sol-interp">—</span>
           <span class="gnn-prop-interp" id="gnn-sol-mol">—</span>
+          <div class="gnn-metrica" id="gnn-sol-metrica" style="display:none"></div>
         </div>
 
         <div class="gnn-divider" id="gnn-div1" style="display:none"></div>
@@ -625,11 +754,20 @@
         <!-- Toxicidad -->
         <div class="gnn-prop" id="gnn-tox-row" style="display:none">
           <div class="gnn-prop-header">
-            <span class="gnn-prop-label">☠ TOXICIDAD (Tox21)</span>
+            <span class="gnn-prop-label" id="gnn-tox-label">☠ TOX21 — ENSAYO CON MAYOR SEÑAL</span>
             <span class="gnn-pred-tag" id="gnn-tox-tag">—</span>
           </div>
           <div class="gnn-track"><div class="gnn-bar" id="gnn-tox-bar"></div></div>
           <span class="gnn-prop-interp" id="gnn-tox-detail">—</span>
+          <div class="gnn-metrica" id="gnn-tox-metrica" style="display:none"></div>
+        <!-- Los 12 ensayos, que es lo que hace defendible no resumirlos en uno. -->
+        <div id="tox-tabla-wrap" class="solo-pro" style="display:none">
+          <div id="tox-tabla-cap"></div>
+          <table class="tox-tabla">
+            <thead><tr><th>Ensayo Tox21</th><th></th><th style="text-align:right">Probabilidad</th></tr></thead>
+            <tbody id="tox-tabla-body"></tbody>
+          </table>
+        </div>
         </div>
 
         <div class="gnn-divider" id="gnn-div2" style="display:none"></div>
@@ -642,6 +780,14 @@
           </div>
           <div class="gnn-track"><div class="gnn-bar" id="gnn-bbb-bar"></div></div>
           <span class="gnn-prop-interp" id="gnn-bbb-detail">—</span>
+          <div class="gnn-metrica" id="gnn-bbb-metrica" style="display:none"></div>
+        </div>
+        <!-- Nota de limitación: permanente. Una herramienta que dice "no
+             tóxico" y se equivoca es un problema de responsabilidad, no un
+             detalle de presentación. -->
+        <div id="gnn-nota">
+          Estimaciones de modelos entrenados con datos públicos (ESOL, Tox21,
+          BBBP). No sustituyen determinaciones experimentales.
         </div>
       </div>
     </div>
@@ -1388,7 +1534,7 @@ document.getElementById('btn-cache').addEventListener('click',()=>{
 });
 
 // ══════════════════════════════════════════════════════
-//  PREDICCIONES GNN
+//  ESTIMACIONES GNN
 // ══════════════════════════════════════════════════════
 // Ruta relativa a proposito: la pagina se sirve desde el mismo Flask. Con la
 // URL absoluta a localhost, abrir la app en http://127.0.0.1:5001 convertia
@@ -1402,7 +1548,31 @@ function toggleGNN(){
   document.getElementById('gnn-body').style.display = gnnOpen ? '' : 'none';
 }
 
-async function predecirGNN(smiles){
+/*
+ * Petición en curso, para dos cosas:
+ *
+ *   · descartar respuestas viejas. Si se analizan dos moléculas seguidas y la
+ *     primera petición tarda más que la segunda, la primera llegaba después y
+ *     repintaba el panel con SUS datos: la ficha decía una molécula y las
+ *     estimaciones eran de otra. No fallaba nada visible, que es lo peor que
+ *     puede pasarle a un fallo así;
+ *   · poder esperarla. predecirGNN era async y nadie recogía su promesa, así
+ *     que no había forma de saber cuándo había terminado y la prueba tenía
+ *     que dormir dos segundos y medio y confiar.
+ */
+let gnnPeticion = 0;
+let gnnEnCurso  = Promise.resolve();
+
+// Devuelve la última petición lanzada. Las pruebas la esperan en vez de dormir.
+function gnnListo(){ return gnnEnCurso; }
+
+function predecirGNN(smiles){
+  gnnEnCurso = predecirGNNInterno(smiles);
+  return gnnEnCurso;
+}
+
+async function predecirGNNInterno(smiles){
+  const miTurno = ++gnnPeticion;
   const badge   = document.getElementById('gnn-badge');
   const offline = document.getElementById('gnn-servidor-off');
 
@@ -1426,23 +1596,211 @@ async function predecirGNN(smiles){
 
     if (data.status !== 'success') throw new Error(data.message || 'sin datos');
 
-    mostrarResultadosGNN(data.propiedades || {});
+    // Mientras se esperaba, alguien pidió otra molécula: esta respuesta ya no
+    // corresponde a lo que hay en pantalla.
+    if (miTurno !== gnnPeticion) return;
+
+    mostrarResultadosGNN(data.propiedades || {}, data.metricas_modelos || null);
     badge.textContent = '✓ GNN';
     badge.className   = 'ok';
 
   } catch(e) {
+    if (miTurno !== gnnPeticion) return;
     // Servidor no disponible o predictor_gnn.py no encontrado
     badge.textContent = 'NO DISPONIBLE';
     badge.className   = 'error';
     offline.style.display = 'block';
     offline.textContent   = window.PINCHDRAW_QUIMICA_LISTA
-      ? '○ No se pudo predecir esta molécula: ' + (e.message || 'error desconocido')
+      ? '○ No se pudo estimar esta molécula: ' + (e.message || 'error desconocido')
       : '○ El motor de química todavía se está cargando…';
     console.log('GNN no disponible:', e.message);
   }
 }
 
-function mostrarResultadosGNN(props){
+
+/*
+ * ── Métricas de los modelos ─────────────────────────────────────────
+ *
+ * Cada estimación se muestra con el error del modelo que la produjo. El
+ * endpoint ya devolvía `metricas_modelos`; lo que faltaba era leerlo.
+ *
+ * Dos notas sobre el formato:
+ *   · coma decimal, que es la convención en español;
+ *   · el split se imprime tal cual viene del config.json. Un ROC-AUC medido
+ *     sobre scaffold de Murcko dice mucho más que el mismo número sobre un
+ *     split aleatorio, porque el test contiene esqueletos moleculares que el
+ *     modelo no vio en el entrenamiento.
+ *
+ * Si `metricas_modelos` no llega, o llega vacío, la línea no se pinta y no
+ * pasa nada más: la estimación se muestra igual.
+ */
+
+/*
+ * ── Incertidumbre visible ───────────────────────────────────────────
+ *
+ * La solubilidad es una regresión y su RMSE (en unidades de logS) SÍ es una
+ * banda de error legítima, así que se dibuja. Para toxicidad y BBBP no se
+ * dibuja ninguna: el ROC-AUC no es un margen de error y pintarlo como si lo
+ * fuera sería inventarse un intervalo. Ahí la honestidad va en el vocabulario.
+ */
+const GNN_LOGS_MIN = -8;   // extremos de la escala de la barra de solubilidad
+const GNN_LOGS_MAX = 2;
+
+function gnnPosicionLogS(valor){
+  const pct = (valor - GNN_LOGS_MIN) / (GNN_LOGS_MAX - GNN_LOGS_MIN) * 100;
+  return Math.min(100, Math.max(0, pct));
+}
+
+// -2.2534 -> "−2,25". Coma decimal y signo menos tipográfico. Dos decimales:
+// con un RMSE de 1,13, el tercero es ruido disfrazado de precisión.
+function gnnLogS(valor){
+  return Number(valor).toFixed(2).replace('.', ',').replace('-', '−');
+}
+
+/*
+ * Dibuja la banda logS ± RMSE sobre la pista, con el valor puntual marcado.
+ * Si no llega el RMSE se ocultan banda y marca y la barra queda como estaba:
+ * es preferible no mostrar intervalo a mostrar uno inventado.
+ */
+// Concentración en mol/L, con una sola cifra significativa porque más sería
+// fingir precisión, y como intervalo cuando se conoce el error del modelo.
+function gnnMolar(logS){
+  let exp = Math.floor(logS);
+  let mant = Math.round(Math.pow(10, logS - exp));
+  // Redondear 9,6 da 10, y "10×10⁻⁴" no es notación científica: es 1×10⁻³.
+  if(mant >= 10){ mant = 1; exp += 1; }
+  const sup = String(exp).replace('-', '⁻')
+    .replace(/[0-9]/g, d => '⁰¹²³⁴⁵⁶⁷⁸⁹'[Number(d)]);
+  return `${mant}×10${sup}`;
+}
+
+function rangoMolar(logs, rmse, puntual){
+  if(!isFinite(logs)) return puntual ? '≈ ' + puntual + ' mol/L' : '';
+  if(!isFinite(rmse) || rmse <= 0) return `≈ ${gnnMolar(logs)} mol/L`;
+  return `≈ ${gnnMolar(logs - rmse)} a ${gnnMolar(logs + rmse)} mol/L`;
+}
+
+function pintarBandaSolubilidad(logs, rmse){
+  const banda  = document.getElementById('gnn-logs-banda');
+  const marca  = document.getElementById('gnn-logs-marca');
+  const escala = document.getElementById('gnn-sol-escala');
+  if(!banda || !marca) return null;
+
+  if(!isFinite(rmse) || rmse <= 0){
+    banda.style.display = 'none';
+    marca.style.display = 'none';
+    if(escala) escala.style.display = 'none';
+    return null;
+  }
+
+  const izq = gnnPosicionLogS(logs - rmse);
+  const der = gnnPosicionLogS(logs + rmse);
+  banda.style.left    = izq + '%';
+  banda.style.width   = Math.max(0.5, der - izq) + '%';
+  banda.style.display = '';
+  marca.style.left    = gnnPosicionLogS(logs) + '%';
+  marca.style.display = '';
+  if(escala) escala.style.display = '';
+
+  const rango = `${gnnLogS(logs - rmse)} y ${gnnLogS(logs + rmse)}`;
+  banda.title = `Banda de error del modelo: logS entre ${rango} `
+    + `(±${gnnLogS(rmse).replace('−','')} = RMSE sobre el test scaffold). `
+    + 'El valor puntual es la marca blanca.';
+  return rango;
+}
+
+/*
+ * Marca visible del nivel de discriminación de un clasificador.
+ *
+ * El nivel lo decide PinchDrawQuimica.nivelDiscriminacion a partir del
+ * ROC-AUC: la MISMA tabla que limita los adjetivos. Duplicar aquí los
+ * umbrales sería garantizar que algún día la etiqueta y el adjetivo dijeran
+ * cosas distintas.
+ *
+ * No se trata de esconder el modelo flojo, sino de que nadie lo confunda con
+ * los otros dos.
+ */
+function gnnNivelModelo(rocAuc){
+  const q = (typeof PinchDrawQuimica !== 'undefined') ? PinchDrawQuimica : null;
+  if(!q || typeof q.nivelDiscriminacion !== 'function') return null;
+  if(rocAuc === undefined || rocAuc === null || !isFinite(rocAuc)) return null;
+  return q.nivelDiscriminacion(rocAuc);
+}
+
+function marcaNivelHTML(nivel){
+  if(!nivel) return '';
+  const debil = (nivel.id === 'muy_baja');
+  const icono = debil ? '⚠ ' : '';
+  const titulo = (nivel.descripcion || '')
+    + ' Vocabulario permitido: ' + (nivel.vocabulario || []).join(' / ') + '.';
+  return `<span class="gnn-nivel${debil ? ' debil' : ''}" title="${titulo.replace(/"/g,'&quot;')}">`
+    + `${icono}${nivel.etiqueta}</span>`;
+}
+
+const GNN_AYUDA_METRICA = {
+  rmse:   'RMSE: error cuadrático medio en unidades de logS. Cuanto más bajo, mejor.',
+  mae:    'MAE: error absoluto medio en unidades de logS.',
+  roc_auc:'ROC-AUC: área bajo la curva ROC. 0,5 equivale a azar; 1,0 a clasificación perfecta.',
+  pr_auc: 'PR-AUC: área bajo la curva precisión-exhaustividad. Es la métrica honesta cuando los positivos son raros, como en Tox21.'
+};
+
+// 1.1254 -> "1,13". Coma decimal y dos cifras: más precisión sería fingir
+// que el tercer decimal de un RMSE significa algo.
+function gnnNumero(valor){
+  if(valor === undefined || valor === null || !isFinite(valor)) return null;
+  return Number(valor).toFixed(2).replace('.', ',');
+}
+
+function gnnTextoSplit(split){
+  if(!split) return null;
+  // "scaffold-murcko-80/10/10" -> "test scaffold (Murcko)"
+  return /scaffold/i.test(split) ? 'test scaffold (Murcko)' : 'test ' + split;
+}
+
+/*
+ * El productor JS usa las claves solubilidad/toxicidad/bbbp y el servidor
+ * Python usa esol/tox21/bbbp para lo mismo. Se aceptan ambas para que la
+ * interfaz funcione contra cualquiera de los dos sin depender de cuál esté
+ * detrás.
+ */
+function gnnMetricaDe(metricas, claves){
+  if(!metricas) return null;
+  for(const clave of claves){
+    const m = metricas[clave];
+    if(m && Object.keys(m).length) return m;
+  }
+  return null;
+}
+
+function pintarMetricaGNN(idElemento, metrica, campos, nivel){
+  const el = document.getElementById(idElemento);
+  if(!el) return;
+  const partes = [];
+  const ayudas = [];
+  campos.forEach(([clave, etiqueta]) => {
+    const n = metrica ? gnnNumero(metrica[clave]) : null;
+    if(n === null) return;
+    partes.push(`<b>${etiqueta} ${n}</b>`);
+    if(GNN_AYUDA_METRICA[clave]) ayudas.push(GNN_AYUDA_METRICA[clave]);
+  });
+  if(!partes.length){ el.style.display = 'none'; return; }
+
+  const split = gnnTextoSplit(metrica.split);
+  const n = metrica.n_test;
+  const cola = [split, (n ? 'n=' + n : null)].filter(Boolean).join(', ');
+  const marca = marcaNivelHTML(nivel);
+  el.innerHTML = partes.join(' · ') + (cola ? ' · ' + cola : '')
+    + (marca ? ' <span class="gnn-sep">·</span> ' + marca : '');
+  el.title = ayudas.join('\n') +
+    (split ? '\nSplit por scaffold de Murcko: el conjunto de test contiene esqueletos moleculares que el modelo no vio al entrenar.' : '');
+  el.style.display = '';
+}
+
+// Lo último pintado, para poder repintarlo al cambiar de modo.
+let ultimoGNN = null;
+
+function mostrarResultadosGNN(props, metricas){
+  ultimoGNN = { props, metricas };
   // ── Solubilidad ──────────────────────────────────
   const sol = props.solubilidad || {};
   if (sol.log_s !== undefined){
@@ -1450,37 +1808,111 @@ function mostrarResultadosGNN(props){
     document.getElementById('gnn-div1').style.display    = '';
 
     const logs = sol.log_s;
-    document.getElementById('gnn-logs').textContent     = logs.toFixed(3);
-    document.getElementById('gnn-sol-interp').textContent = sol.mensaje_nino || sol.interpretacion || '';
-    document.getElementById('gnn-sol-mol').textContent  = sol.sol_mol_l ? '≈ '+sol.sol_mol_l : '';
+    const rmse = Number((gnnMetricaDe(metricas, ['solubilidad', 'esol']) || {}).rmse);
+
+    /*
+     * El intervalo va en el número grande, no sólo en la letra pequeña. Antes
+     * ponía "-2.253": tres decimales de un valor con ±1,13 de error, que es
+     * afirmar una precisión cien veces mayor de la que el modelo tiene.
+     */
+    const val = document.getElementById('gnn-logs');
+    val.textContent = isFinite(rmse) && rmse > 0
+      ? `${gnnLogS(logs)} ± ${gnnLogS(rmse).replace('−','')}`
+      : gnnLogS(logs);
+
+    /*
+     * En modo profesional manda la interpretación técnica, que va hedgeada
+     * cuando la banda de error cruza más de una categoría ("Entre soluble y
+     * poco soluble"). En modo niño se mantiene el mensaje sencillo, que es
+     * deliberadamente vago ("se disuelve un poco") y por tanto no afirma una
+     * categoría que el modelo no sostenga.
+     */
+    document.getElementById('gnn-sol-interp').textContent = esModoPro()
+      ? (sol.interpretacion || sol.mensaje_nino || '')
+      : (sol.mensaje_nino || sol.interpretacion || '');
+    /*
+     * La concentración también es un intervalo, y aquí se nota más que en
+     * logS: ±1,13 en logaritmo es un factor de 13 arriba y abajo. Poner
+     * "0.000772 mol/L" al lado de "−3,11 ± 1,13" era decir el mismo número
+     * dos veces, una de ellas mintiendo sobre su precisión.
+     */
+    document.getElementById('gnn-sol-mol').textContent = rangoMolar(logs, rmse, sol.sol_mol_l);
 
     // Barra: rango logS de -8 (insoluble) a +2 (muy soluble)
     const pct = Math.min(100, Math.max(0, (logs + 8) / 10 * 100));
     const bar = document.getElementById('gnn-logs-bar');
     bar.style.width      = pct + '%';
-    bar.style.background = logs >= -1 ? '#06d6a0' : logs >= -3 ? '#ffbe0b' : '#ef233c';
+    /*
+     * El color no puede afirmar una zona que la banda de error no respeta.
+     * Antes se pintaba verde intenso un logS de -0,9 aunque su banda llegara
+     * hasta -2: el relleno decía "soluble, seguro" mientras la banda de al lado
+     * decía lo contrario. Cuando la banda cruza zonas se usa un degradado entre
+     * los colores de los extremos, que es exactamente lo que ocurre.
+     */
+    const zonaColor = v => v >= -1 ? '#06d6a0' : v >= -3 ? '#ffbe0b' : '#ef233c';
+    const conBanda = isFinite(rmse) && rmse > 0;
+    const colorAlto = zonaColor(conBanda ? logs + rmse : logs);
+    const colorBajo = zonaColor(conBanda ? logs - rmse : logs);
+    bar.style.background = colorAlto === colorBajo
+      ? colorAlto
+      : `linear-gradient(90deg, ${colorBajo} 0%, ${colorAlto} 100%)`;
+
+    const rango = pintarBandaSolubilidad(logs, rmse);
+    val.title = rango
+      ? `Estimación puntual ${gnnLogS(logs)} logS. Con el error del modelo, `
+        + `el valor está entre ${rango}.`
+      : '';
   }
 
   // ── Toxicidad ────────────────────────────────────
+  /*
+   * ── Toxicidad: se dice lo que el número es ────
+   *
+   * Este valor era "probabilidad_global" y se presentaba como la toxicidad de
+   * la molécula. No lo es: es el MÁXIMO de doce ensayos, y el máximo de doce
+   * variables tira al alza sólo por ser el máximo. Ahora se dice de qué ensayo
+   * sale y cuántos de los doce superan el umbral, que es el dato que da
+   * contexto: 0,73 con uno solo por encima y 0,73 con nueve son cosas muy
+   * distintas.
+   */
   const tox = props.toxicidad || {};
-  if (tox.probabilidad_global !== undefined){
+  // El backend Python aún llama al campo probabilidad_global; se aceptan los
+  // dos nombres para que la interfaz sirva contra cualquiera de los dos.
+  const probTox = tox.prob_ensayo_mas_alto !== undefined
+    ? tox.prob_ensayo_mas_alto : tox.probabilidad_global;
+  if (probTox !== undefined){
     document.getElementById('gnn-tox-row').style.display = '';
     document.getElementById('gnn-div2').style.display    = '';
 
-    const prob = tox.probabilidad_global;
-    const pct  = Math.round(prob * 100);
+    const pct  = Math.round(probTox * 100);
     const tag  = document.getElementById('gnn-tox-tag');
-    tag.textContent = (tox.prediccion || '—') + '  ' + pct + '%';
-    tag.className   = 'gnn-pred-tag ' + (prob > 0.6 ? 'bad' : prob > 0.35 ? 'warn' : 'ok');
+    const ensayo = tox.ensayo_mas_alto;
+    tag.textContent = (ensayo ? ensayo + ' · ' : '')
+      + (tox.prediccion || '—') + '  ' + pct + '%';
+    tag.className   = 'gnn-pred-tag ' + (probTox > 0.6 ? 'bad' : probTox > 0.35 ? 'warn' : 'ok');
 
     const bar = document.getElementById('gnn-tox-bar');
     bar.style.width      = pct + '%';
-    bar.style.background = prob > 0.6 ? '#ef233c' : prob > 0.35 ? '#ffbe0b' : '#06d6a0';
+    bar.style.background = probTox > 0.6 ? '#ef233c' : probTox > 0.35 ? '#ffbe0b' : '#06d6a0';
 
-    const mayor = tox.ensayo_mayor_riesgo;
-    const probM = tox.prob_mayor_riesgo;
-    document.getElementById('gnn-tox-detail').textContent =
-      tox.mensaje_nino || (mayor ? `Mayor riesgo: ${mayor} (${(probM*100).toFixed(0)}%)` : '');
+    const n     = tox.n_ensayos !== undefined ? tox.n_ensayos
+                : Object.keys(tox.ensayos || {}).length;
+    const sobre = tox.n_sobre_umbral;
+    const umbral = tox.umbral_positivo !== undefined ? tox.umbral_positivo : 0.5;
+    const detalle = document.getElementById('gnn-tox-detail');
+    detalle.textContent = (sobre !== undefined && n)
+      ? `${sobre} de ${n} ensayos por encima de ${String(umbral).replace('.', ',')}`
+      : '';
+    // La advertencia del sesgo va donde se lee el número, no en una nota
+    // lejana: quien mire ese 73 % tiene que poder saber de dónde sale.
+    detalle.title = tag.title = n
+      ? `El valor es el mayor de ${n} ensayos independientes. El máximo de ${n} `
+        + 'probabilidades tiende al alza por selección: aunque los ensayos fueran '
+        + 'azar, el mayor de ellos saldría alto. Por eso se muestra el desglose '
+        + 'completo en el modo profesional en vez de resumirlo en un solo número.'
+      : '';
+
+    pintarTablaTox(tox);
   }
 
   // ── BBBP ────────────────────────────────────────
@@ -1500,6 +1932,23 @@ function mostrarResultadosGNN(props){
 
     document.getElementById('gnn-bbb-detail').textContent = bbb.mensaje_nino || bbb.interpretacion || '';
   }
+
+  // ── Métricas de los tres modelos ─────────────────
+  // Van al final, ya pintadas las tres filas, para que una métrica que falte
+  // no impida mostrar el resto.
+  pintarMetricaGNN('gnn-sol-metrica',
+    gnnMetricaDe(metricas, ['solubilidad', 'esol']),
+    [['rmse', 'RMSE'], ['mae', 'MAE']]);
+  // Los dos clasificadores muestran además su nivel de discriminación, para
+  // que nadie lea "0,73" y "0,64" como si fueran lo mismo.
+  const metTox = gnnMetricaDe(metricas, ['toxicidad', 'tox21']);
+  const metBbb = gnnMetricaDe(metricas, ['bbbp']);
+  pintarMetricaGNN('gnn-tox-metrica', metTox,
+    [['roc_auc', 'ROC-AUC'], ['pr_auc', 'PR-AUC']],
+    gnnNivelModelo(metTox && metTox.roc_auc));
+  pintarMetricaGNN('gnn-bbb-metrica', metBbb,
+    [['roc_auc', 'ROC-AUC'], ['pr_auc', 'PR-AUC']],
+    gnnNivelModelo(metBbb && metBbb.roc_auc));
 }
 
 
@@ -1581,6 +2030,7 @@ document.addEventListener('keydown',e=>{
 
 async function mostrarMolecula(mol,conf,alts,opciones={}){
   molActualModal = mol;   // referencia para los botones "Usar como Reactivo"
+  pintarFichaTecnica(mol);
   // Historial educativo: cada molécula abierta por detección/catálogo queda disponible tras recargar.
   if(!opciones.desdeHistorial) registrarHistorial(mol);
   // ── Advertencia si se abre desde file:// (sin servidor) ──
@@ -1675,8 +2125,10 @@ async function mostrarMolecula(mol,conf,alts,opciones={}){
     ['gnn-sol-row','gnn-tox-row','gnn-bbb-row','gnn-div1','gnn-div2']
       .forEach(id=>{const el=document.getElementById(id); if(el) el.style.display='none';});
     offline.style.display='block';
-    offline.textContent='Las predicciones son para moléculas, no para átomos individuales. Aquí se muestran los datos reales del elemento.';
+    offline.textContent='Las estimaciones son para moléculas, no para átomos individuales. Aquí se muestran los datos reales del elemento.';
   }else{
+    // Sin await a propósito: la ficha se muestra ya y las estimaciones
+    // entran cuando estén. Quien necesite esperarlas usa gnnListo().
     predecirGNN(mol.smiles);
   }
 }
@@ -1970,6 +2422,8 @@ function mostrarResultadoReaccion(data, reactants=[]){
       <div id="reaccion-productos">${productosHtml}</div>
       ${altHtml}
     `;
+    pintarPosibilidadesReaccion(data);
+
     // ── Cargar 3D para reacciones RDKit exitosas ──────────
     const productos3d = (data.productos_principales||[]).map(p=>p.smiles).filter(Boolean);
     cargar3DReaccion(reactants.filter(Boolean), productos3d, data.tipo_reaccion||'→');
@@ -2471,6 +2925,219 @@ function perfInit(){
   });
 }
 perfInit();
+
+// ══════════════════════════════════════════════════════
+//  MODO NIÑO / MODO PROFESIONAL
+//
+//  El modo niño es el de por defecto y queda exactamente como estaba. El
+//  profesional no cambia nada: AÑADE lo que la app ya calculaba y tiraba —los
+//  12 ensayos Tox21, la ficha técnica, todas las reacciones posibles— y una
+//  entrada de SMILES, porque quien sabe química no debería tener que dibujar.
+// ══════════════════════════════════════════════════════
+const MODO_KEY = 'pinchdraw_modo_v1';
+
+/*
+ * El modo VIGENTE es el que está aplicado al documento; localStorage sólo
+ * guarda la preferencia entre visitas. Al principio esModoPro() leía
+ * localStorage y aplicarModo() escribía el dataset, así que los dos podían
+ * discrepar: aplicar un modo sin tocar el almacenamiento dejaba la interfaz
+ * en pro y las funciones creyendo que seguía en niño.
+ */
+function modoActual(){
+  return document.body.dataset.modo === 'pro' ? 'pro' : 'nino';
+}
+function modoGuardado(){
+  return localStorage.getItem(MODO_KEY) === 'pro' ? 'pro' : 'nino';
+}
+function esModoPro(){ return modoActual() === 'pro'; }
+
+function aplicarModo(modo){
+  document.body.dataset.modo = modo;
+  const btn = document.getElementById('btn-modo');
+  if(btn){
+    btn.textContent = modo === 'pro' ? '🔬 MODO PROFESIONAL' : '🧒 MODO NIÑO';
+    btn.setAttribute('aria-pressed', modo === 'pro' ? 'true' : 'false');
+  }
+  // Lo ya pintado se vuelve a pintar: si se cambia de modo con una ficha
+  // abierta, sus datos deben aparecer sin tener que cerrarla y reabrirla.
+  if(ultimoGNN) mostrarResultadosGNN(ultimoGNN.props, ultimoGNN.metricas);
+  if(ultimaFichaMol) pintarFichaTecnica(ultimaFichaMol);
+  if(ultimaReaccion) pintarPosibilidadesReaccion(ultimaReaccion);
+}
+
+function alternarModo(){
+  const nuevo = esModoPro() ? 'nino' : 'pro';
+  localStorage.setItem(MODO_KEY, nuevo);
+  aplicarModo(nuevo);
+}
+
+// ── Ficha técnica ───────────────────────────────────────
+// SMILES canónico, peso, átomos, enlaces y anillos: todo esto se calculaba en
+// validarSmiles() y no se mostraba en ningún sitio.
+let ultimaFichaMol = null;
+
+function filaFicha(clave, valor){
+  return `<div class="ficha-fila"><span class="ficha-k">${textoGuiaSeguro(clave)}</span>`
+       + `<span class="ficha-v">${textoGuiaSeguro(valor)}</span></div>`;
+}
+
+async function pintarFichaTecnica(mol){
+  ultimaFichaMol = mol;
+  const cont = document.getElementById('ficha-tecnica');
+  if(!cont) return;
+  if(!esModoPro() || !mol || !mol.smiles){ cont.innerHTML = ''; return; }
+
+  cont.innerHTML = '<h4>Ficha técnica</h4>'
+    + filaFicha('SMILES de entrada', mol.smiles)
+    + '<div class="ficha-fila"><span class="ficha-k">Analizando…</span><span class="ficha-v">—</span></div>';
+
+  try{
+    const r = await fetch('/validar-smiles', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({smiles: mol.smiles})
+    });
+    const d = await r.json();
+    if(d.status !== 'success') throw new Error(d.message || 'SMILES no interpretable');
+    const i = d.info || {};
+    cont.innerHTML = '<h4>Ficha técnica</h4>'
+      + filaFicha('SMILES de entrada', i.smiles || mol.smiles)
+      + filaFicha('SMILES canónico', i.smiles_canonico || '—')
+      + filaFicha('Fórmula molecular', i.formula || '—')
+      + filaFicha('Peso molecular', (i.peso_molecular !== undefined
+          ? Number(i.peso_molecular).toFixed(4).replace('.', ',') + ' g/mol' : '—'))
+      + filaFicha('Átomos pesados', i.num_atomos ?? '—')
+      + filaFicha('Enlaces', i.num_enlaces ?? '—')
+      + filaFicha('Anillos', i.anillos ?? '—')
+      + filaFicha('Sistema aromático', i.tiene_aromaticos ? 'sí' : 'no');
+  }catch(e){
+    cont.innerHTML = '<h4>Ficha técnica</h4>'
+      + filaFicha('SMILES de entrada', mol.smiles)
+      + filaFicha('Estado', 'no disponible (' + (e.message || 'error') + ')');
+  }
+}
+
+// ── Entrada manual de SMILES ────────────────────────────
+// Usa /validar-smiles, que existía desde el principio sin que nadie lo llamara.
+async function analizarSmilesManual(){
+  const input = document.getElementById('smiles-input');
+  const aviso = document.getElementById('smiles-aviso');
+  const smiles = (input.value || '').trim();
+  aviso.className = '';
+
+  if(!smiles){
+    aviso.textContent = 'Escribe un SMILES. Por ejemplo, CCO para el etanol.';
+    return;
+  }
+
+  aviso.textContent = 'Comprobando…';
+  try{
+    const r = await fetch('/validar-smiles', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({smiles})
+    });
+    const d = await r.json();
+    if(d.status !== 'success'){
+      // Un SMILES mal escrito es lo normal al teclear: se dice qué pasa y ya,
+      // sin romper nada ni dejar la pantalla a medias.
+      aviso.textContent = (d.message || `No he podido interpretar "${smiles}".`)
+        + ' Revisa los paréntesis y los cierres de anillo.';
+      return;
+    }
+    const i = d.info || {};
+    aviso.className = 'ok';
+    aviso.textContent = `${i.formula} · ${i.num_atomos} átomos · `
+      + `${i.anillos} anillo(s) · ${Number(i.peso_molecular).toFixed(2).replace('.', ',')} g/mol`;
+
+    mostrarMolecula({
+      nombre: i.formula || smiles,
+      nombre_es: i.formula || smiles,
+      nombre_en: i.smiles_canonico || smiles,
+      formula: i.formula || '—',
+      smiles: i.smiles_canonico || smiles,
+      peso: Number(i.peso_molecular).toFixed(2) + ' g/mol',
+      tipo: 'Introducida a mano',
+      tipo_es: 'Introducida a mano',
+      descripcion: 'Molécula analizada a partir del SMILES escrito, sin dibujarla.',
+      color: '#c9a6e8',
+      icono: '⌨',
+      puntaje: 100
+    }, 100, []);
+  }catch(e){
+    aviso.textContent = 'No se pudo analizar: ' + (e.message || 'error desconocido');
+  }
+}
+
+// ── Tabla de los 12 ensayos Tox21 ───────────────────────
+function pintarTablaTox(tox){
+  const wrap = document.getElementById('tox-tabla-wrap');
+  const body = document.getElementById('tox-tabla-body');
+  const cap  = document.getElementById('tox-tabla-cap');
+  if(!wrap || !body) return;
+
+  const filas = tox && tox.ensayos_ordenados
+    ? tox.ensayos_ordenados
+    : Object.keys((tox && tox.ensayos) || {})
+        .map(k => ({ensayo:k, prob:tox.ensayos[k]}))
+        .sort((a,b) => b.prob - a.prob);
+
+  if(!esModoPro() || !filas.length){ wrap.style.display = 'none'; return; }
+
+  const umbral = tox.umbral_positivo !== undefined ? tox.umbral_positivo : 0.5;
+  const sobre  = tox.n_sobre_umbral !== undefined
+    ? tox.n_sobre_umbral
+    : filas.filter(f => f.prob >= umbral).length;
+
+  cap.textContent = `Los ${filas.length} ensayos por separado, de mayor a menor. `
+    + `${sobre} superan ${String(umbral).replace('.', ',')}. `
+    + 'El valor que se muestra arriba es el mayor de esta lista, no una toxicidad global.';
+
+  body.innerHTML = filas.map(f => {
+    const pct = Math.round(f.prob * 100);
+    const col = f.prob >= 0.6 ? '#ff6b6b' : f.prob >= umbral ? '#ffbe0b' : '#5fa85f';
+    return `<tr class="${f.prob >= umbral ? 'sobre' : ''}">`
+      + `<td>${textoGuiaSeguro(f.ensayo)}</td>`
+      + `<td class="barra"><div class="tox-mini"><i style="width:${pct}%;background:${col}"></i></div></td>`
+      + `<td class="num">${f.prob.toFixed(3).replace('.', ',')}</td></tr>`;
+  }).join('');
+  wrap.style.display = '';
+}
+
+// ── Todas las posibilidades de reacción ─────────────────
+// La API devolvía `todas_las_posibilidades` y la interfaz sólo pintaba la
+// primera, avisando de que había más pero sin enseñarlas.
+let ultimaReaccion = null;
+
+function pintarPosibilidadesReaccion(data){
+  ultimaReaccion = data;
+  const previo = document.getElementById('reaccion-todas');
+  if(previo) previo.remove();
+
+  const cont = document.getElementById('reaccion-resultado');
+  const listas = (data && data.todas_las_posibilidades) || [];
+  if(!cont || !esModoPro() || listas.length < 2) return;
+
+  const bloque = document.createElement('div');
+  bloque.id = 'reaccion-todas';
+  bloque.className = 'solo-pro';
+  bloque.innerHTML = '<h4>Las ' + listas.length + ' posibilidades de reacción</h4>'
+    + listas.map((lista, i) => {
+        const smis = lista.map(p => textoGuiaSeguro(p.smiles) +
+          (p.formula ? ' <span style="color:#a89a78">(' + textoGuiaSeguro(p.formula) + ')</span>' : ''));
+        return `<div class="rx-posibilidad">`
+          + `<div class="rx-posibilidad-n">Posibilidad ${i + 1}${i === 0 ? ' — la que se muestra arriba' : ''}</div>`
+          + `<div class="rx-posibilidad-s">${smis.join('<br>')}</div></div>`;
+      }).join('');
+  cont.appendChild(bloque);
+}
+
+// El modo se aplica al arrancar para que la elección de la visita anterior
+// valga desde el primer instante.
+document.getElementById('btn-modo').addEventListener('click', alternarModo);
+document.getElementById('smiles-btn').addEventListener('click', analizarSmilesManual);
+document.getElementById('smiles-input').addEventListener('keydown', ev => {
+  if(ev.key === 'Enter') analizarSmilesManual();
+});
+aplicarModo(modoGuardado());
 
 // ════════════════════════════════════════════════════
 //  PANEL GUÍA — CÓMO DIBUJAR + REACCIONES

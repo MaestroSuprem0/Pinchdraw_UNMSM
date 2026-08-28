@@ -445,16 +445,55 @@
   //  6. INTERPRETACIONES (copiadas de PredictorMolecular)
   // ══════════════════════════════════════════════════════════════════
 
-  function interpretarLogS(logS) {
-    if (logS >= 0) return 'Muy soluble (>1 mol/L)';
-    if (logS >= -1) return 'Soluble';
-    if (logS >= -2) return 'Moderadamente soluble';
-    if (logS >= -3) return 'Poco soluble';
-    if (logS >= -4) return 'Escasamente soluble';
-    if (logS >= -6) return 'Insoluble';
-    return 'Prácticamente insoluble';
+  /*
+   * Categorías de solubilidad, de más a menos soluble. El límite es el logS
+   * mínimo que entra en cada una.
+   */
+  const CATEGORIAS_LOGS = [
+    [0,  'Muy soluble (>1 mol/L)', 'muy soluble'],
+    [-1, 'Soluble',                'soluble'],
+    [-2, 'Moderadamente soluble',  'moderadamente soluble'],
+    [-3, 'Poco soluble',           'poco soluble'],
+    [-4, 'Escasamente soluble',    'escasamente soluble'],
+    [-6, 'Insoluble',              'insoluble'],
+    [-Infinity, 'Prácticamente insoluble', 'prácticamente insoluble']
+  ];
+
+  function categoriaLogS(logS) {
+    for (let i = 0; i < CATEGORIAS_LOGS.length; i++) {
+      if (logS >= CATEGORIAS_LOGS[i][0]) return CATEGORIAS_LOGS[i];
+    }
+    return CATEGORIAS_LOGS[CATEGORIAS_LOGS.length - 1];
   }
 
+  /*
+   * Adjetivo de solubilidad, coherente con el error del modelo.
+   *
+   * Las categorías tienen 1 unidad de logS de ancho y el RMSE del modelo es
+   * 1,13: la banda de error casi siempre cubre más de una. Decir "Soluble"
+   * para un logS de -0,95 y "Moderadamente soluble" para -1,05 es fingir que
+   * se distingue algo que el modelo no distingue — es el mismo error que
+   * cometía el adjetivo de los clasificadores antes de calibrarse.
+   *
+   * Sin RMSE se comporta como siempre: una sola categoría.
+   */
+  function interpretarLogS(logS, rmse) {
+    const cat = categoriaLogS(logS);
+    if (!isFinite(rmse) || rmse <= 0) return cat[1];
+
+    const alta = categoriaLogS(logS + rmse);   // extremo más soluble
+    const baja = categoriaLogS(logS - rmse);   // extremo menos soluble
+    if (alta[1] === baja[1]) return alta[1];
+    return 'Entre ' + alta[2] + ' y ' + baja[2];
+  }
+
+  /*
+   * El mensaje para niños se deja como estaba a propósito. Sus cuatro tramos
+   * son de 2 unidades de logS y su lenguaje ya es vago ("se disuelve un poco"),
+   * así que no afirma una categoría que el modelo no sostenga. Hedgearlo más
+   * — "entre disolverse un poco y no disolverse" — lo volvería ininteligible
+   * para quien está pensado, sin ganar honestidad.
+   */
   function mensajeNinoLogS(logS) {
     if (logS >= 0) return '¡Se disuelve en agua como el azúcar!';
     if (logS >= -2) return 'Se disuelve un poco en agua.';
@@ -462,12 +501,106 @@
     return '¡No se disuelve en agua!';
   }
 
-  function interpretarProbabilidad(p) {
-    if (p >= 0.8) return 'Muy probable';
-    if (p >= 0.6) return 'Probable';
-    if (p >= 0.4) return 'Incierto';
-    if (p >= 0.2) return 'Poco probable';
-    return 'Muy poco probable';
+  /*
+   * ── Vocabulario calibrado según lo bien que discrimina el modelo ────
+   *
+   * Antes esta función era una escala fija de cinco adjetivos, la misma para
+   * los tres modelos. El resultado era que BBBP, con ROC-AUC 0,641 —donde 0,5
+   * es tirar una moneda—, decía "Muy probable" en cuanto la sigmoide pasaba de
+   * 0,8. Esa palabra afirma una certeza que el modelo no tiene, y no la
+   * arregla ninguna nota al pie.
+   *
+   * La probabilidad que devuelve un clasificador y su capacidad de acertar son
+   * cosas distintas: un modelo puede estar muy seguro y equivocarse a menudo.
+   * Así que el adjetivo lo elige el ROC-AUC, no la sigmoide: cuanto peor
+   * discrimina el modelo, menos le dejamos afirmar.
+   *
+   * Los umbrales de ROC-AUC son los habituales al leer una curva ROC: por
+   * debajo de 0,65 se considera que el modelo apenas supera el azar, y a
+   * partir de 0,85 que separa bien las clases.
+   *
+   * Nada está codificado por modelo. Si un reentrenamiento sube BBBP a 0,88,
+   * el vocabulario se amplía solo.
+   */
+  const NIVELES_DISCRIMINACION = [
+    {
+      id: 'alta',
+      minRoc: 0.85,
+      etiqueta: 'discriminación alta',
+      descripcion: 'El modelo separa bien las clases (ROC-AUC ≥ 0,85).',
+      vocabulario: ['Muy probable', 'Probable', 'Incierto', 'Poco probable', 'Muy poco probable'],
+      decidir: function (p) {
+        if (p >= 0.8) return 'Muy probable';
+        if (p >= 0.6) return 'Probable';
+        if (p >= 0.4) return 'Incierto';
+        if (p >= 0.2) return 'Poco probable';
+        return 'Muy poco probable';
+      }
+    },
+    {
+      id: 'moderada',
+      minRoc: 0.75,
+      etiqueta: 'discriminación moderada',
+      descripcion: 'El modelo discrimina de forma moderada (ROC-AUC 0,75–0,85). '
+        + 'No se usan los extremos del vocabulario.',
+      vocabulario: ['Probable', 'Incierto', 'Poco probable'],
+      decidir: function (p) {
+        if (p >= 0.65) return 'Probable';
+        if (p >= 0.35) return 'Incierto';
+        return 'Poco probable';
+      }
+    },
+    {
+      id: 'baja',
+      minRoc: 0.65,
+      etiqueta: 'discriminación baja',
+      descripcion: 'El modelo discrimina poco (ROC-AUC 0,65–0,75). '
+        + 'Sólo se usa lenguaje tentativo.',
+      vocabulario: ['Posible', 'Incierto', 'Poco probable'],
+      decidir: function (p) {
+        if (p >= 0.65) return 'Posible';
+        if (p >= 0.35) return 'Incierto';
+        return 'Poco probable';
+      }
+    },
+    {
+      /*
+       * Aquí no se afirma nada. El modelo apenas supera el azar, así que lo
+       * único honesto que se puede decir es hacia dónde se inclina y con qué
+       * poca fuerza. La dirección la aporta el porcentaje, que se muestra al
+       * lado; el adjetivo sólo dice cuánto crédito merece.
+       */
+      id: 'muy_baja',
+      minRoc: -Infinity,
+      etiqueta: 'discriminación muy baja',
+      descripcion: 'El modelo apenas supera el azar (ROC-AUC < 0,65; 0,5 sería '
+        + 'lanzar una moneda). Su salida es un indicio, no una conclusión.',
+      vocabulario: ['Indicio débil', 'No concluyente'],
+      decidir: function (p) {
+        return (p >= 0.65 || p <= 0.35) ? 'Indicio débil' : 'No concluyente';
+      }
+    }
+  ];
+
+  /*
+   * Nivel de discriminación a partir del ROC-AUC del modelo.
+   *
+   * Sin ROC-AUC se devuelve el nivel más conservador a propósito: un modelo
+   * de calidad desconocida no puede ganarse el derecho a afirmar. Es la
+   * misma razón por la que la métrica se lee del config y no se escribe a
+   * mano.
+   */
+  function nivelDiscriminacion(rocAuc) {
+    const roc = Number(rocAuc);
+    if (!isFinite(roc)) return NIVELES_DISCRIMINACION[NIVELES_DISCRIMINACION.length - 1];
+    for (let i = 0; i < NIVELES_DISCRIMINACION.length; i++) {
+      if (roc >= NIVELES_DISCRIMINACION[i].minRoc) return NIVELES_DISCRIMINACION[i];
+    }
+    return NIVELES_DISCRIMINACION[NIVELES_DISCRIMINACION.length - 1];
+  }
+
+  function interpretarProbabilidad(p, rocAuc) {
+    return nivelDiscriminacion(rocAuc).decidir(p);
   }
 
   const TAREAS_TOX21 = [
@@ -486,6 +619,20 @@
     const propiedades = {};
     const metricas = {};
 
+    /*
+     * Las métricas viajan junto al split con el que se midieron.
+     *
+     * Sin el split, "ROC-AUC 0,73" no dice nada: sobre un split aleatorio ese
+     * número sería flojo y sobre uno por scaffold de Murcko es honesto, porque
+     * el test contiene esqueletos moleculares que el modelo no vio nunca. Es
+     * dato del config.json, no una cadena escrita en la interfaz, para que si
+     * alguien reentrena con otro split la pantalla no siga afirmando el viejo.
+     */
+    function conSplit(cfg) {
+      const m = cfg.metricas || {};
+      return cfg.split ? Object.assign({}, m, { split: cfg.split }) : m;
+    }
+
     // ── Solubilidad (regresión: hay que desnormalizar) ─────────────
     if (modelos.esol) {
       const bruto = modelos.esol.forward(grafo)[0];
@@ -495,10 +642,10 @@
       propiedades.solubilidad = {
         log_s: logS,
         sol_mol_l: Number(Math.pow(10, logS).toPrecision(3)),
-        interpretacion: interpretarLogS(logS),
+        interpretacion: interpretarLogS(logS, (modelos.esol.config.metricas || {}).rmse),
         mensaje_nino: mensajeNinoLogS(logS)
       };
-      metricas.solubilidad = modelos.esol.config.metricas || {};
+      metricas.solubilidad = conSplit(modelos.esol.config);
     }
 
     // ── Toxicidad (12 ensayos Tox21: logits → sigmoide) ────────────
@@ -511,13 +658,38 @@
       probs.forEach(function (p, i) {
         porEnsayo[etiquetas[i] || ('tarea_' + i)] = p;
       });
+      /*
+       * El máximo de los 12 ensayos NO es "la toxicidad" de la molécula.
+       *
+       * Es un estadístico de orden extremo: el máximo de N variables tiende al
+       * alza sólo por ser el máximo, y con N=12 empuja hacia arriba a casi
+       * cualquier molécula aunque los doce ensayos fueran ruido. Con un PR-AUC
+       * de 0,286 el modelo acierta poco en la clase positiva, que es justo la
+       * que ese máximo amplifica.
+       *
+       * El número se sigue calculando —es útil saber qué ensayo destaca— pero
+       * se devuelve diciendo lo que es: la señal más alta, de qué ensayo, y
+       * cuántos de los doce superan el umbral. Ese recuento es lo que da
+       * contexto: "0,73 en SR-MMP, 1 de 12 por encima de 0,5" y "0,73 en
+       * SR-MMP, 9 de 12 por encima de 0,5" son situaciones muy distintas que
+       * el máximo suelto no distinguía.
+       */
+      const UMBRAL_POSITIVO = 0.5;
+      const ordenados = etiquetas
+        .map(function (nombre, i) { return { ensayo: nombre, prob: probs[i] }; })
+        .sort(function (a, b) { return b.prob - a.prob; });
+
       propiedades.toxicidad = {
-        probabilidad_global: global,
-        prediccion: interpretarProbabilidad(global),
+        ensayo_mas_alto: etiquetas[probs.indexOf(global)] || null,
+        prob_ensayo_mas_alto: global,
+        prediccion: interpretarProbabilidad(global, (modelos.tox21.config.metricas || {}).roc_auc),
         ensayos: porEnsayo,
-        ensayo_mas_alto: etiquetas[probs.indexOf(global)] || null
+        ensayos_ordenados: ordenados,
+        n_ensayos: probs.length,
+        umbral_positivo: UMBRAL_POSITIVO,
+        n_sobre_umbral: probs.filter(function (p) { return p >= UMBRAL_POSITIVO; }).length
       };
-      metricas.toxicidad = modelos.tox21.config.metricas || {};
+      metricas.toxicidad = conSplit(modelos.tox21.config);
     }
 
     // ── Permeabilidad de la barrera hematoencefálica ───────────────
@@ -525,10 +697,10 @@
       const prob = sigmoide(modelos.bbbp.forward(grafo)[0]);
       propiedades.bbbp = {
         probabilidad: prob,
-        prediccion: interpretarProbabilidad(prob),
+        prediccion: interpretarProbabilidad(prob, (modelos.bbbp.config.metricas || {}).roc_auc),
         cruza_bbb: prob >= 0.5
       };
-      metricas.bbbp = modelos.bbbp.config.metricas || {};
+      metricas.bbbp = conSplit(modelos.bbbp.config);
     }
 
     return {
@@ -949,6 +1121,12 @@
     simularReaccion: simularReaccion,
     listarReacciones: listarReacciones,
     smilesAGrafo: smilesAGrafo,
+    // Expuestas para que la interfaz marque el modelo débil y las pruebas
+    // comprueben la calibración contra la misma tabla que usa el motor. Si se
+    // duplicaran los umbrales, acabarían discrepando.
+    interpretarProbabilidad: interpretarProbabilidad,
+    nivelDiscriminacion: nivelDiscriminacion,
+    interpretarLogS: interpretarLogS,
     Modelo: Modelo,
     _modelos: modelos,
     _fijarRDKit: function (r) { RDKit = r; },
