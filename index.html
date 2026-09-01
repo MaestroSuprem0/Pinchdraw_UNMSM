@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Proyecto Final — Reconocimiento Molecular</title>
+  <title>Proyecto Final PT4 — Reconocimiento Molecular</title>
   <link rel="icon" href="favicon.ico"/>
   <script src="https://3Dmol.csb.pitt.edu/build/3Dmol-min.js"></script>
 
@@ -88,7 +88,7 @@
     #eps-row{display:flex;align-items:center;gap:6px;}
     #eps-slider{width:100px;accent-color:#888;cursor:pointer;}
     #eps-value{font-family:'Courier New',monospace;font-size:10px;color:#666;width:32px;text-align:right;}
-    #hint{position:fixed;bottom:100px;left:50%;transform:translateX(-50%);font-family:'Courier New',monospace;font-size:14px;color:#ff8a8a;letter-spacing:1px;white-space:nowrap;pointer-events:none;z-index:20;text-align:center;line-height:1.6;}
+    #hint{position:fixed;bottom:68px;left:50%;transform:translateX(-50%);font-family:'Courier New',monospace;font-size:14px;color:#ff8a8a;letter-spacing:1px;white-space:nowrap;pointer-events:none;z-index:20;text-align:center;line-height:1.6;}
     #buttons{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);display:flex;gap:10px;z-index:20;flex-wrap:wrap;justify-content:center;max-width:calc(100vw - 230px);}
     .btn{font-family:'Courier New',monospace;font-size:11px;letter-spacing:2px;padding:7px 18px;background:rgba(0,0,0,0.8);border-radius:6px;cursor:pointer;transition:all 0.2s;color:#666;border:1px solid #333;}
     .btn:hover{border-color:#bbb;color:#fff;}
@@ -318,41 +318,194 @@
     /* Dos clases a propósito: .gnn-track se declara más abajo con height:4px y,
        a igual especificidad, ganaría por ir después. La banda necesita alto
        suficiente para verse proyectada. */
-    .gnn-track.gnn-track-sol{height:16px;position:relative;background:#0d1a0d;}
+    .gnn-track.gnn-track-sol{height:16px;position:relative;background:var(--p-pista);}
     #gnn-logs-banda{position:absolute;top:0;bottom:0;pointer-events:none;
       background:repeating-linear-gradient(135deg,
-        rgba(255,255,255,0.30) 0 3px, rgba(255,255,255,0.06) 3px 7px);
-      border-left:2px solid rgba(255,255,255,0.65);
-      border-right:2px solid rgba(255,255,255,0.65);}
+        var(--banda-raya-a) 0 3px, var(--banda-raya-b) 3px 7px);
+      border-left:2px solid var(--banda-borde);
+      border-right:2px solid var(--banda-borde);}
     /* El valor puntual, dentro de su banda. */
     #gnn-logs-marca{position:absolute;top:-2px;bottom:-2px;width:3px;
-      background:#fff;box-shadow:0 0 5px rgba(0,0,0,0.9);pointer-events:none;}
+      background:var(--marca-color);box-shadow:0 0 5px var(--marca-sombra);pointer-events:none;}
     .gnn-escala{display:flex;justify-content:space-between;font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
-      font-size:11px;color:#8fa88f;margin-top:2px;}
+      font-size:11px;color:var(--p-escala);margin-top:2px;}
     /* ── Nivel de discriminación de cada clasificador ─────────────── */
-    .gnn-sep{color:#6f8a9e;}
+    .gnn-sep{color:var(--p-sep);}
     .gnn-nivel{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:9px;
       font-size:11px;letter-spacing:0.3px;cursor:help;vertical-align:middle;
-      background:rgba(120,170,220,0.14);border:1px solid #4a7fa8;color:#b9d4e8;}
-    .gnn-nivel.debil{background:rgba(230,170,60,0.18);border-color:#c08a2a;color:#f0c878;}
+      background:var(--p-nivel-fondo);border:1px solid var(--p-info-borde);color:var(--p-nivel-texto);}
+    .gnn-nivel.debil{background:var(--p-debil-fondo);border-color:var(--p-debil-borde);color:var(--p-debil-texto);}
     /* ── Métrica del modelo bajo cada estimación ──────────────────────
        12 px y 6,9:1 de contraste sobre el fondo del panel. Es letra pequeña
        a propósito —es un dato secundario— pero tiene que leerse proyectada,
        que es donde va a hacer falta. */
-    .gnn-metrica{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:12px;color:#9fc0d8;line-height:1.5;
-      margin-top:3px;padding:5px 8px;background:rgba(120,170,220,0.10);
-      border-left:2px solid #4a7fa8;border-radius:0 4px 4px 0;cursor:help;}
-    .gnn-metrica b{color:#d3e6f5;font-weight:bold;}
+    .gnn-metrica{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:12px;color:var(--p-info-texto);line-height:1.5;
+      margin-top:3px;padding:5px 8px;background:var(--p-info-fondo);
+      border-left:2px solid var(--p-info-borde);border-radius:0 4px 4px 0;cursor:help;}
+    .gnn-metrica b{color:var(--p-info-fuerte);font-weight:bold;}
     /* Nota de limitación: permanente, discreta, no descartable. */
-    #gnn-nota{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:12px;color:#c9b98a;line-height:1.55;
-      margin-top:2px;padding:8px 10px;background:rgba(200,170,90,0.10);
-      border-top:1px solid #4a4128;border-radius:6px;}
+    #gnn-nota{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:12px;color:var(--p-aviso-texto);line-height:1.55;
+      margin-top:2px;padding:8px 10px;background:var(--p-aviso-fondo);
+      border-top:1px solid var(--p-aviso-borde);border-radius:6px;}
 
+
+
+    /* ══ TEMA DE LOS PANELES DE DATOS ════════════════════════════════
+       Un instrumento de laboratorio tiene la pantalla oscura y las carátulas
+       claras. Aquí igual: el lienzo y la cámara siguen sobre negro —el vídeo
+       y los trazos están pensados contra negro y aclararlos empeoraría el
+       contraste del propio dibujo— y son los paneles de DATOS los que pasan a
+       cerámica en modo profesional.
+
+       Los valores de :root son los actuales, tal cual. El modo niño consume
+       exactamente los mismos colores que antes; sólo tienen nombre. */
+    :root{
+      --p-fondo:#111a11;      --p-fondo-2:#131a26;     --p-fondo-3:#0d160d;
+      --p-cabecera:#162616;   --p-borde:#2f4a2f;       --p-borde-2:#2b3a4d;
+      --p-borde-sutil:#1c2c1c;--p-borde-sutil-2:#22303f;
+      --p-titulo:#8fd06a;     --p-etiqueta:#a8cfa8;    --p-valor:#f2f5f8;
+      --p-texto:#dfe7ef;      --p-texto-2:#b9c6d6;     --p-pista:#0d1a0d;
+      --p-badge-texto:#a8c8a8;--p-badge-borde:#4a7a4a;
+      --p-info-fondo:rgba(120,170,220,0.10); --p-info-borde:#4a7fa8;
+      --p-info-texto:#9fc0d8; --p-info-fuerte:#d3e6f5;
+      --p-nivel-fondo:rgba(120,170,220,0.14); --p-nivel-texto:#b9d4e8;
+      --p-aviso-fondo:rgba(200,170,90,0.10);  --p-aviso-borde:#4a4128;
+      --p-aviso-texto:#c9b98a;
+      --p-debil-fondo:rgba(230,170,60,0.18);  --p-debil-borde:#c08a2a;
+      --p-debil-texto:#f0c878;
+      --p-ambar:#e0c98a;      --p-rx-fondo:#171208;    --p-rx-borde:#4a3a18;
+      --p-ficha-titulo:#cbd8e6; --p-ficha-k:#a8b6c6;
+      --p-escala:#8fa88f;     --p-sep:#6f8a9e;
+      --p-tox-mini:#22331f;   --p-tox-sobre:#ffd9a0;   --p-tox-punto:#ff9f45;
+      --tag-ok-fondo:#063a1a; --tag-ok-texto:#06d6a0;  --tag-ok-borde:#0a5a2a;
+      --tag-warn-fondo:#3a2a00;--tag-warn-texto:#ffbe0b;--tag-warn-borde:#5a4a00;
+      --tag-bad-fondo:#3a0a0a;--tag-bad-texto:#ff6b6b; --tag-bad-borde:#8a2020;
+      --smiles-fondo:rgba(10,14,22,0.94); --smiles-borde:#3a4a5e;
+      --smiles-label:#a8b6c6; --smiles-input-fondo:#0b1017;
+      --smiles-input-texto:#e8edf2;
+      --smiles-btn-fondo:rgba(175,216,112,0.20); --smiles-btn-borde:#8fd06a;
+      --smiles-btn-texto:#eaf5d8;
+      --smiles-aviso:#f0b860; --smiles-aviso-ok:#a8cfa8;
+      --banda-raya-a:rgba(255,255,255,0.30); --banda-raya-b:rgba(255,255,255,0.06);
+      --banda-borde:rgba(255,255,255,0.65);  --marca-color:#fff;
+      --marca-sombra:rgba(0,0,0,0.9);
+      --badge-cargando:#ffbe0b; --badge-cargando-borde:#554400;
+      --badge-ok:#06d6a0;       --badge-ok-borde:#064a3a;
+      --badge-error:#d89a9a;    --badge-error-borde:#6a3a3a;
+    }
+
+    /* Cerámica de laboratorio. Sólo cambian las variables. */
+    body[data-modo="pro"]{
+      --p-fondo:#f4f2ee;      --p-fondo-2:#f4f2ee;     --p-fondo-3:#efece6;
+      --p-cabecera:#e6e2d9;   --p-borde:#c9c4bc;       --p-borde-2:#c9c4bc;
+      --p-borde-sutil:#dcd7cd;--p-borde-sutil-2:#dcd7cd;
+      --p-titulo:#1d4a1d;     --p-etiqueta:#2c5a2c;    --p-valor:#141414;
+      --p-texto:#1a1a1a;      --p-texto-2:#333333;     --p-pista:#d8d3c9;
+      --p-badge-texto:#2c5a2c;--p-badge-borde:#7d9c7d;
+      --p-info-fondo:rgba(30,90,140,0.10);   --p-info-borde:#2b6a99;
+      --p-info-texto:#194764; --p-info-fuerte:#0c3149;
+      --p-nivel-fondo:rgba(30,90,140,0.12);  --p-nivel-texto:#194764;
+      --p-aviso-fondo:rgba(150,110,20,0.12); --p-aviso-borde:#9a7c33;
+      --p-aviso-texto:#54400f;
+      --p-debil-fondo:rgba(190,120,20,0.18); --p-debil-borde:#8e6410;
+      --p-debil-texto:#523605;
+      --p-ambar:#54400f;      --p-rx-fondo:#f2ede1;    --p-rx-borde:#cbbf9e;
+      --p-ficha-titulo:#1c3646; --p-ficha-k:#333333;
+      --p-escala:#3a563a;     --p-sep:#37505f;
+      --p-tox-mini:#ddd8cc;   --p-tox-sobre:#5f3600;   --p-tox-punto:#8a4f00;
+      --tag-ok-fondo:#d6f0e2; --tag-ok-texto:#0a5336;  --tag-ok-borde:#7fc0a4;
+      --tag-warn-fondo:#f7ecc9;--tag-warn-texto:#5f4600;--tag-warn-borde:#c9a94a;
+      --tag-bad-fondo:#f7d9d9;--tag-bad-texto:#7d101d; --tag-bad-borde:#c97f86;
+      --smiles-fondo:#f4f2ee; --smiles-borde:#c9c4bc;
+      --smiles-label:#333333; --smiles-input-fondo:#fffdf9;
+      --smiles-input-texto:#141414;
+      --smiles-btn-fondo:#dbe8c8; --smiles-btn-borde:#4f7a2c;
+      --smiles-btn-texto:#1f380c;
+      --smiles-aviso:#6d4300; --smiles-aviso-ok:#1a521a;
+      --banda-raya-a:rgba(0,0,0,0.22);  --banda-raya-b:rgba(0,0,0,0.05);
+      --banda-borde:rgba(0,0,0,0.55);   --marca-color:#111;
+      --marca-sombra:rgba(255,255,255,0.9);
+      /* La barra de estado acompaña a las carátulas. */
+      --barra-fondo:#e6e2d9;  --barra-texto:#2a2a2a;
+      --barra-destacado:#101010; --barra-separador:#5f5a50;
+      --badge-cargando:#6b4e00;  --badge-cargando-borde:#b08a2a;
+      --badge-ok:#0a5336;        --badge-ok-borde:#5f9c80;
+      --badge-error:#7d101d;     --badge-error-borde:#b06a72;
+    }
+    /* ══ IDENTIDAD DEL MODO PROFESIONAL ══════════════════════════════
+       El color del modo vive en una variable: cambiar la identidad es
+       editar una línea, no perseguir el valor por toda la hoja. Cian por
+       defecto, que en un instrumento lee como pantalla técnica; para el
+       dorado que también se valoraba basta con cambiar esto. */
+    :root{
+      --color-modo-pro:#06d6a0;
+      --marco-modo-pro:3px;
+    }
+
+    /* Marco sobrio: unos pocos píxeles, sin animación ni brillo. Un
+       instrumento no parpadea. Va en un elemento propio y no en el borde del
+       body para no alterar el flujo ni el tamaño del lienzo. */
+    /* Lados por separado y no el atajo `inset`: con `inset:0` el elemento no
+       llegaba a estirarse y quedaba de 0x0, así que el marco no se veía. Los
+       longhands de borde, por lo mismo: `border:0 solid var(--x)` mezcla una
+       variable dentro de un atajo y complica que el ancho se resuelva. */
+    #marco-modo{position:fixed;top:0;right:0;bottom:0;left:0;
+      z-index:900;pointer-events:none;
+      border-style:solid;border-color:var(--color-modo-pro);border-width:0;
+      transition:border-width 240ms ease;}
+    body[data-modo="pro"] #marco-modo{border-width:var(--marco-modo-pro);}
+
+    /* ── Barra de estado con las credenciales del modelo ──────────────
+       Permanente en modo profesional: deja las métricas a la vista incluso
+       en una captura de pantalla. */
+    #estado-pro{position:fixed;top:0;left:0;right:0;z-index:901;
+      font-family:'Courier New',monospace;font-size:14px;letter-spacing:0.3px;
+      padding:5px 14px;line-height:1.45;
+      background:var(--barra-fondo);color:var(--barra-texto);
+      border-bottom:1px solid var(--color-modo-pro);
+      /* Se deja envolver en pantallas estrechas en vez de crear una barra de
+         desplazamiento horizontal: la barra crecía 16 px por el scrollbar y se
+         comía la interfaz de debajo. Las credenciales tienen que leerse
+         enteras, también en una captura. */
+      white-space:normal;overflow:hidden;
+      opacity:0;transform:translateY(-100%);
+      transition:opacity 240ms ease,transform 240ms ease;}
+    body[data-modo="pro"] #estado-pro{opacity:1;transform:translateY(0);}
+    #estado-pro b{color:var(--barra-destacado);font-weight:bold;}
+    #estado-pro .sep{color:var(--barra-separador);margin:0 2px;}
+    /* La barra empuja el resto de la interfaz superior: no tapa nada. */
+    /* La altura real de la barra la mide el JS y la publica aquí, para que lo
+       de debajo baje exactamente lo que la barra ocupa y no un número fijo que
+       se queda corto en cuanto el texto envuelve. */
+    body[data-modo="pro"] #ui{padding-top:calc(var(--altura-barra, 30px) + 10px);}
+    body[data-modo="pro"] #correction-panel{top:calc(var(--altura-barra, 30px) + 42px);}
+
+    /* Colores de la barra. Se definen aquí como variables para que el tema
+       claro del punto 3 sólo tenga que redefinirlas. */
+    :root{
+      --barra-fondo:#0a1512;
+      --barra-texto:#bfd8d0;
+      --barra-destacado:#e8f5f0;
+      --barra-separador:#8fb3aa;
+    }
+
+    /* La transición de modo afecta a los contenedores, no a cada elemento:
+       200-300 ms, sin rebotes. */
+    #gnn-section,#ficha-tecnica,#tox-tabla-wrap,#smiles-panel,
+    #mol-card,#reaccion-card,.rx-posibilidad{
+      transition:background-color 240ms ease,color 240ms ease,
+                 border-color 240ms ease;}
     /* ── Modo profesional ─────────────────────────────────────────────
        Todo lo marcado .solo-pro se oculta en modo niño. El modo niño es el
        de por defecto y no gana ni pierde nada respecto a lo que había. */
     body[data-modo="nino"] .solo-pro{display:none !important;}
-    #btn-modo{position:fixed;bottom:18px;right:246px;z-index:25;
+    /* El conmutador vive dentro de #ui, arriba a la izquierda, como primer
+   elemento del grupo izquierdo. No lleva posición propia: lo coloca el flex
+   de #ui-izquierda, así el cambio de ancho del texto no descoloca el título.
+   #ui tiene pointer-events:none para dejar dibujar por debajo, de modo que
+   el botón necesita reactivarlos para sí mismo. */
+#ui-izquierda{display:flex;align-items:flex-start;gap:12px;}
+#btn-modo{pointer-events:auto;flex-shrink:0;
       font-family:'Courier New',monospace;font-size:14px;letter-spacing:1px;
       padding:7px 15px;background:rgba(0,0,0,0.88);border-radius:6px;cursor:pointer;
       border:1px solid #7a5aa0;color:#c9a6e8;transition:all 0.2s;}
@@ -361,86 +514,90 @@
       background:rgba(90,60,120,0.55);}
 
     /* Entrada manual de SMILES: quien sabe química no debería tener que dibujar. */
-    #smiles-panel{position:fixed;bottom:56px;left:50%;transform:translateX(-50%);
+    /* Arriba y centrado: ocupa el hueco que dejan el título (izquierda) y el
+   indicador de detección (derecha). Se descuelga de la barra de estado, cuya
+   altura real publica el JS en --altura-barra. */
+#smiles-panel{position:fixed;top:calc(var(--altura-barra, 30px) + 12px);
+      left:50%;transform:translateX(-50%);
       z-index:26;display:flex;gap:8px;align-items:center;flex-wrap:wrap;
-      justify-content:center;background:rgba(10,14,22,0.94);border:1px solid #3a4a5e;
+      justify-content:center;background:var(--smiles-fondo);border:1px solid var(--smiles-borde);
       border-radius:10px;padding:9px 12px;max-width:min(620px,94vw);
       font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;}
-    #smiles-panel label{font-size:14px;color:#a8b6c6;letter-spacing:1px;}
-    #smiles-input{flex:1;min-width:220px;background:#0b1017;border:1px solid #3a4a5e;
-      border-radius:6px;color:#e8edf2;font-family:'Courier New',monospace;
+    #smiles-panel label{font-size:14px;color:var(--smiles-label);letter-spacing:1px;}
+    #smiles-input{flex:1;min-width:220px;background:var(--smiles-input-fondo);border:1px solid var(--smiles-borde);
+      border-radius:6px;color:var(--smiles-input-texto);font-family:'Courier New',monospace;
       font-size:15px;padding:8px 10px;outline:none;}
     #smiles-input:focus{border-color:#8fd06a;box-shadow:0 0 0 2px rgba(122,186,74,0.15);}
     #smiles-btn{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;padding:8px 14px;border-radius:6px;
-      cursor:pointer;background:rgba(175,216,112,0.20);border:1px solid #8fd06a;color:#eaf5d8;}
+      cursor:pointer;background:var(--smiles-btn-fondo);border:1px solid var(--smiles-btn-borde);color:var(--smiles-btn-texto);}
     #smiles-btn:hover{background:rgba(175,216,112,0.34);}
     #smiles-aviso{width:100%;font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;line-height:1.5;
-      color:#f0b860;}
-    #smiles-aviso.ok{color:#a8cfa8;}
+      color:var(--smiles-aviso);}
+    #smiles-aviso.ok{color:var(--smiles-aviso-ok);}
 
     /* Tabla de los 12 ensayos Tox21. Sin emojis: son datos. */
-    #tox-tabla-wrap{margin-top:10px;background:#0d160d;border:1px solid #2f4a2f;
+    #tox-tabla-wrap{margin-top:10px;background:var(--p-fondo-3);border:1px solid var(--p-borde);
       border-radius:8px;overflow:hidden;}
-    #tox-tabla-cap{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;color:#a8cfa8;padding:8px 10px;
-      background:#162616;border-bottom:1px solid #2f4a2f;line-height:1.5;}
+    #tox-tabla-cap{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;color:var(--p-etiqueta);padding:8px 10px;
+      background:var(--p-cabecera);border-bottom:1px solid var(--p-borde);line-height:1.5;}
     table.tox-tabla{width:100%;border-collapse:collapse;font-family:'Courier New',monospace;}
-    table.tox-tabla th{font-size:14px;color:#a8cfa8;text-align:left;padding:6px 10px;
-      border-bottom:1px solid #2f4a2f;font-weight:normal;letter-spacing:0.5px;}
-    table.tox-tabla td{font-size:14px;color:#dfe7ef;padding:5px 10px;
-      border-bottom:1px solid #1c2c1c;}
+    table.tox-tabla th{font-size:14px;color:var(--p-etiqueta);text-align:left;padding:6px 10px;
+      border-bottom:1px solid var(--p-borde);font-weight:normal;letter-spacing:0.5px;}
+    table.tox-tabla td{font-size:14px;color:var(--p-texto);padding:5px 10px;
+      border-bottom:1px solid var(--p-borde-sutil);}
     table.tox-tabla tr:last-child td{border-bottom:none;}
     table.tox-tabla td.num{text-align:right;width:5.5em;}
     table.tox-tabla td.barra{width:38%;}
-    .tox-mini{height:9px;border-radius:3px;background:#22331f;overflow:hidden;}
+    .tox-mini{height:9px;border-radius:3px;background:var(--p-tox-mini);overflow:hidden;}
     .tox-mini i{display:block;height:100%;border-radius:3px;}
-    table.tox-tabla tr.sobre td{color:#ffd9a0;}
-    table.tox-tabla tr.sobre td:first-child::after{content:' ●';color:#ff9f45;}
+    table.tox-tabla tr.sobre td{color:var(--p-tox-sobre);}
+    table.tox-tabla tr.sobre td:first-child::after{content:' ●';color:var(--p-tox-punto);}
 
     /* Ficha técnica */
-    #ficha-tecnica{margin:12px 0;background:#131a26;border:1px solid #2b3a4d;
+    #ficha-tecnica{margin:12px 0;background:var(--p-fondo-2);border:1px solid var(--p-borde-2);
       border-radius:10px;padding:12px;}
     #ficha-tecnica h4{margin:0 0 8px;font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:15px;
-      color:#cbd8e6;font-weight:bold;letter-spacing:0.5px;}
+      color:var(--p-ficha-titulo);font-weight:bold;letter-spacing:0.5px;}
     .ficha-fila{display:flex;justify-content:space-between;gap:12px;
-      padding:4px 0;border-bottom:1px solid #22303f;}
+      padding:4px 0;border-bottom:1px solid var(--p-borde-sutil-2);}
     .ficha-fila:last-child{border-bottom:none;}
-    .ficha-k{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;color:#a8b6c6;}
-    .ficha-v{font-family:'Courier New',monospace;font-size:14px;color:#f2f5f8;
+    .ficha-k{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;color:var(--p-ficha-k);}
+    .ficha-v{font-family:'Courier New',monospace;font-size:14px;color:var(--p-valor);
       text-align:right;word-break:break-all;}
 
     /* Todas las posibilidades de reacción */
-    #reaccion-todas{margin-top:12px;}
+    #reaccion-todas{margin-top:12px;background:var(--p-fondo-2);border:1px solid var(--p-borde-2);border-radius:10px;padding:11px;}
     #reaccion-todas h4{margin:0 0 8px;font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:15px;
-      color:#e0c98a;font-weight:bold;}
-    .rx-posibilidad{background:#171208;border:1px solid #4a3a18;border-radius:8px;
+      color:var(--p-ambar);font-weight:bold;}
+    .rx-posibilidad{background:var(--p-rx-fondo);border:1px solid var(--p-rx-borde);border-radius:8px;
       padding:9px 11px;margin-bottom:8px;}
-    .rx-posibilidad-n{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;color:#e0c98a;
+    .rx-posibilidad-n{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;color:var(--p-ambar);
       margin-bottom:5px;letter-spacing:0.5px;}
     .rx-posibilidad-s{font-family:'Courier New',monospace;font-size:14px;
-      color:#dfe7ef;line-height:1.6;word-break:break-all;}
-    #gnn-section{margin:14px 0;border:1px solid #2f4a2f;border-radius:10px;overflow:hidden;}
-    #gnn-header{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:#162616;border-bottom:1px solid #2f4a2f;cursor:pointer;}
-    #gnn-header-label{font-size:15px;font-weight:bold;color:#8fd06a;letter-spacing:1.5px;}
-    #gnn-badge{font-size:12px;padding:3px 9px;border-radius:10px;border:1px solid #4a7a4a;color:#a8c8a8;letter-spacing:1px;transition:all 0.3s;}
-    #gnn-badge.cargando{color:#ffbe0b;border-color:#554400;animation:gnn-pulse 1s infinite;}
-    #gnn-badge.ok{color:#06d6a0;border-color:#064a3a;}
-    #gnn-badge.error{color:#d89a9a;border-color:#6a3a3a;}
+      color:var(--p-texto);line-height:1.6;word-break:break-all;}
+    #gnn-section{margin:14px 0;border:1px solid var(--p-borde);border-radius:10px;overflow:hidden;}
+    #gnn-header{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--p-cabecera);border-bottom:1px solid var(--p-borde);cursor:pointer;}
+    #gnn-header-label{font-size:15px;font-weight:bold;color:var(--p-titulo);letter-spacing:1.5px;}
+    #gnn-badge{font-size:12px;padding:3px 9px;border-radius:10px;border:1px solid var(--p-badge-borde);color:var(--p-badge-texto);letter-spacing:1px;transition:all 0.3s;}
+    #gnn-badge.cargando{color:var(--badge-cargando);border-color:var(--badge-cargando-borde);animation:gnn-pulse 1s infinite;}
+    #gnn-badge.ok{color:var(--badge-ok);border-color:var(--badge-ok-borde);}
+    #gnn-badge.error{color:var(--badge-error);border-color:var(--badge-error-borde);}
     @keyframes gnn-pulse{0%,100%{opacity:1}50%{opacity:0.3}}
-    #gnn-body{padding:14px;display:flex;flex-direction:column;gap:14px;background:#111a11;}
+    #gnn-body{padding:14px;display:flex;flex-direction:column;gap:14px;background:var(--p-fondo);}
     .gnn-prop{display:flex;flex-direction:column;gap:4px;}
     .gnn-prop-header{display:flex;justify-content:space-between;align-items:baseline;}
-    .gnn-prop-label{font-size:14px;color:#a8cfa8;letter-spacing:1px;}
-    .gnn-prop-val{font-size:17px;color:#f2f5f8;font-weight:bold;}
-    .gnn-prop-interp{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;color:#b9c6d6;letter-spacing:0;line-height:1.5;}
-    .gnn-track{height:4px;background:#0d1a0d;border-radius:3px;overflow:hidden;margin-top:2px;}
+    .gnn-prop-label{font-size:14px;color:var(--p-etiqueta);letter-spacing:1px;}
+    .gnn-prop-val{font-size:17px;color:var(--p-valor);font-weight:bold;}
+    .gnn-prop-interp{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;color:var(--p-texto-2);letter-spacing:0;line-height:1.5;}
+    .gnn-track{height:4px;background:var(--p-pista);border-radius:3px;overflow:hidden;margin-top:2px;}
     .gnn-bar{height:100%;border-radius:3px;transition:width 0.7s ease;}
-    .gnn-divider{height:1px;background:#2f4a2f;}
+    .gnn-divider{height:1px;background:var(--p-borde);}
     .gnn-pred-row{display:flex;justify-content:space-between;align-items:center;}
     .gnn-pred-tag{font-size:14px;padding:3px 10px;border-radius:8px;letter-spacing:0.5px;}
-    .gnn-pred-tag.ok{background:#063a1a;color:#06d6a0;border:1px solid #0a5a2a;}
-    .gnn-pred-tag.warn{background:#3a2a00;color:#ffbe0b;border:1px solid #5a4a00;}
-    .gnn-pred-tag.bad{background:#3a0a0a;color:#ff6b6b;border:1px solid #8a2020;}
-    #gnn-servidor-off{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;color:#b9c6d6;letter-spacing:0;padding:10px;text-align:center;line-height:1.5;}
+    .gnn-pred-tag.ok{background:var(--tag-ok-fondo);color:var(--tag-ok-texto);border:1px solid var(--tag-ok-borde);}
+    .gnn-pred-tag.warn{background:var(--tag-warn-fondo);color:var(--tag-warn-texto);border:1px solid var(--tag-warn-borde);}
+    .gnn-pred-tag.bad{background:var(--tag-bad-fondo);color:var(--tag-bad-texto);border:1px solid var(--tag-bad-borde);}
+    #gnn-servidor-off{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;color:var(--p-texto-2);letter-spacing:0;padding:10px;text-align:center;line-height:1.5;}
 
     /* ── REACTIVOS PARA REACCIÓN (chips + botones en el modal) ── */
     #reaccion-pick-row{display:flex;gap:8px;margin-top:10px;}
@@ -543,9 +700,17 @@
 
 
 <div id="ui">
-  <div id="branding">
-    <div id="title">Proyecto quimica</div>
-    <div id="subtitle">Analisis molecular SFS</div>
+  <!-- Grupo izquierdo: el conmutador de modo va primero, arriba a la
+       izquierda. Se agrupa con el título en un flex en vez de posicionarlo
+       de forma absoluta, para que el ancho del botón —que cambia entre
+       "MODO NIÑO" y "MODO PROFESIONAL"— no descoloque nada. -->
+  <div id="ui-izquierda">
+    <button id="btn-modo" type="button"
+            title="Cambia entre la vista sencilla y la vista con todos los datos">🧒 MODO NIÑO</button>
+    <div id="branding">
+      <div id="title">Proyecto programacion PT 4</div>
+      <div id="subtitle">Analisis molecular SFS</div>
+    </div>
   </div>
   <div id="status-cluster">
     <div id="state-badge">SIN MANO</div>
@@ -576,9 +741,14 @@
   <div id="camera-preview-label">📷 CÁMARA</div>
 </div>
 <!-- ── BOTÓN GUÍA ──────────────────────────────────── -->
-<button id="btn-modo" type="button" title="Cambia entre la vista sencilla y la vista con todos los datos">🧒 MODO NIÑO</button>
+<!-- Marco e indicador del modo profesional. El marco es un elemento aparte
+     para no tocar el tamaño del lienzo. -->
+<div id="marco-modo" aria-hidden="true"></div>
+<div id="estado-pro" class="solo-pro" role="status"></div>
 <!-- Entrada manual de SMILES: sólo en modo profesional. El endpoint
-     /validar-smiles existía desde el principio y nadie lo llamaba. -->
+     /validar-smiles existía desde el principio y nadie lo llamaba.
+     Vive arriba, en el hueco central que dejan el título (izquierda) y el
+     indicador de detección (derecha). -->
 <div id="smiles-panel" class="solo-pro">
   <label for="smiles-input">SMILES</label>
   <input id="smiles-input" type="text" spellcheck="false" autocomplete="off"
@@ -2953,6 +3123,7 @@ function esModoPro(){ return modoActual() === 'pro'; }
 
 function aplicarModo(modo){
   document.body.dataset.modo = modo;
+  pintarBarraEstado();
   const btn = document.getElementById('btn-modo');
   if(btn){
     btn.textContent = modo === 'pro' ? '🔬 MODO PROFESIONAL' : '🧒 MODO NIÑO';
@@ -2970,6 +3141,98 @@ function alternarModo(){
   localStorage.setItem(MODO_KEY, nuevo);
   aplicarModo(nuevo);
 }
+
+// ── Barra de estado con las credenciales de los modelos ─────────────
+//
+// Todo lo que muestra sale de los modelos cargados: la arquitectura de las
+// formas de los pesos, el split y las métricas del config. Nada está escrito
+// a mano, así que un reentrenamiento la actualiza sola. Si falta un dato, ese
+// fragmento se omite y la barra sigue funcionando.
+
+// "3×GCN 128-128-64" leído de las formas de los pesos, no de una constante.
+function arquitecturaModelo(modelo){
+  const formas = modelo && modelo.formas;
+  if(!formas) return null;
+  const capas = Object.keys(formas)
+    .map(k => k.match(/^gcn(\d+)\.linear\.weight$/))
+    .filter(Boolean)
+    .map(m => ({ n: Number(m[1]), salida: formas[m[0]][0] }))
+    .sort((a, b) => a.n - b.n);
+  if(!capas.length) return null;
+  return `${capas.length}×GCN ${capas.map(c => c.salida).join('-')}`;
+}
+
+// "scaffold-murcko-80/10/10" -> "split scaffold Bemis-Murcko 80/10/10".
+// Los scaffolds de Murcko se citan también como Bemis-Murcko; el reparto se
+// conserva tal cual viene.
+function textoSplit(split){
+  if(!split) return null;
+  const reparto = (String(split).match(/(\d+\/\d+\/\d+)/) || [])[1];
+  if(/scaffold/i.test(split)){
+    return 'split scaffold Bemis-Murcko' + (reparto ? ' ' + reparto : '');
+  }
+  return 'split ' + split;
+}
+
+function numeroBarra(v){
+  return (v === undefined || v === null || !isFinite(v))
+    ? null : Number(v).toFixed(2).replace('.', ',');
+}
+
+function credencialesModelos(){
+  const q = (typeof PinchDrawQuimica !== 'undefined') ? PinchDrawQuimica : null;
+  const modelos = (q && q._modelos) || {};
+  const partes = [];
+
+  const arq = arquitecturaModelo(modelos.esol) ||
+              arquitecturaModelo(modelos.tox21) ||
+              arquitecturaModelo(modelos.bbbp);
+  if(arq) partes.push('GNN ' + arq);
+
+  // El split es el mismo para los tres; se muestra una vez si coinciden.
+  const splits = ['esol','tox21','bbbp']
+    .map(n => modelos[n] && modelos[n].config && modelos[n].config.split)
+    .filter(Boolean);
+  const unico = splits.length && splits.every(s => s === splits[0]) ? splits[0] : null;
+  const ts = textoSplit(unico);
+  if(ts) partes.push(ts);
+
+  [['esol','ESOL','rmse','RMSE'],
+   ['tox21','Tox21','roc_auc','ROC-AUC'],
+   ['bbbp','BBBP','roc_auc','ROC-AUC']].forEach(([id, nombre, campo, etiqueta]) => {
+    const m = modelos[id] && modelos[id].config && modelos[id].config.metricas;
+    const n = numeroBarra(m && m[campo]);
+    if(n) partes.push(`${nombre} ${etiqueta} ${n}`);
+  });
+
+  return partes;
+}
+
+function pintarBarraEstado(){
+  const barra = document.getElementById('estado-pro');
+  if(!barra) return;
+  const partes = credencialesModelos();
+  const sep = '<span class="sep">·</span>';
+  barra.innerHTML = '<b>🔬 MODO PROFESIONAL</b>'
+    + (partes.length ? ' ' + sep + ' ' + partes.join(' ' + sep + ' ') : '');
+  barra.title = partes.length
+    ? 'Credenciales de los modelos cargados. Salen del propio modelo: si se '
+      + 'reentrena, esta barra cambia sola.'
+    : 'Los modelos aún no han terminado de cargarse.';
+
+  medirBarraEstado();
+}
+
+// La barra puede ocupar una o dos líneas según el ancho de la ventana. Se mide
+// y se publica como variable CSS para que la interfaz de debajo se aparte justo
+// lo necesario: con un valor fijo, al envolver el texto tapaba el título.
+function medirBarraEstado(){
+  const barra = document.getElementById('estado-pro');
+  if(!barra) return;
+  const alto = Math.ceil(barra.getBoundingClientRect().height) || 30;
+  document.documentElement.style.setProperty('--altura-barra', alto + 'px');
+}
+window.addEventListener('resize', medirBarraEstado);
 
 // ── Ficha técnica ───────────────────────────────────────
 // SMILES canónico, peso, átomos, enlaces y anillos: todo esto se calculaba en
