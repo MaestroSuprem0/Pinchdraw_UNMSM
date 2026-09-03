@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Proyecto Final — Reconocimiento Molecular</title>
+  <title>Proyecto Final PT4 — Reconocimiento Molecular</title>
   <link rel="icon" href="favicon.ico"/>
   <script src="https://3Dmol.csb.pitt.edu/build/3Dmol-min.js"></script>
 
@@ -17,7 +17,7 @@
        así la app no depende de que unpkg esté disponible, y el .wasm queda
        cacheado en el navegador tras la primera visita. -->
   <script src="RDKit_minimal.js"></script>
-  <script src="pinchdraw-quimica.js"></script>
+  <script src="pinchdraw-quimica.js?v=f5f74c3bad"></script>
   <script>
     // Si el módulo de química no llegó a cargarse, se avisa en pantalla en
     // vez de dejar que la página reviente con un error críptico.
@@ -88,7 +88,7 @@
     #eps-row{display:flex;align-items:center;gap:6px;}
     #eps-slider{width:100px;accent-color:#888;cursor:pointer;}
     #eps-value{font-family:'Courier New',monospace;font-size:10px;color:#666;width:32px;text-align:right;}
-    #hint{position:fixed;bottom:100px;left:50%;transform:translateX(-50%);font-family:'Courier New',monospace;font-size:14px;color:#ff8a8a;letter-spacing:1px;white-space:nowrap;pointer-events:none;z-index:20;text-align:center;line-height:1.6;}
+    #hint{position:fixed;bottom:68px;left:50%;transform:translateX(-50%);font-family:'Courier New',monospace;font-size:14px;color:#ff8a8a;letter-spacing:1px;white-space:nowrap;pointer-events:none;z-index:20;text-align:center;line-height:1.6;}
     #buttons{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);display:flex;gap:10px;z-index:20;flex-wrap:wrap;justify-content:center;max-width:calc(100vw - 230px);}
     .btn{font-family:'Courier New',monospace;font-size:11px;letter-spacing:2px;padding:7px 18px;background:rgba(0,0,0,0.8);border-radius:6px;cursor:pointer;transition:all 0.2s;color:#666;border:1px solid #333;}
     .btn:hover{border-color:#bbb;color:#fff;}
@@ -708,7 +708,7 @@
     <button id="btn-modo" type="button"
             title="Cambia entre la vista sencilla y la vista con todos los datos">🧒 MODO NIÑO</button>
     <div id="branding">
-      <div id="title">Proyecto programacion</div>
+      <div id="title">Proyecto programacion PT 4</div>
       <div id="subtitle">Analisis molecular SFS</div>
     </div>
   </div>
@@ -1036,9 +1036,9 @@
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.3/p5.min.js"></script>
-<script src="molecules_250.js"></script>
-<script src="elementos_quimicos.js"></script>
-<script src="pinchdraw-trazos.js"></script>
+<script src="molecules_250.js?v=3fb44a8379"></script>
+<script src="elementos_quimicos.js?v=ee39e256ab"></script>
+<script src="pinchdraw-trazos.js?v=d2af85020e"></script>
 
 <script>
 
@@ -1065,13 +1065,85 @@ epsSlider.addEventListener('input',()=>{epsValue.textContent=epsSlider.value+' p
 //  arrancan en los valores de hoy y solo se evalúa un booleano por frame.
 // ══════════════════════════════════════════════════════
 const PERF=new URLSearchParams(location.search).has('perf');
+/*
+ * Valores por defecto, y por qué cada uno.
+ *
+ * De los cinco sospechosos de lentitud, dos se midieron aquí y tres no se
+ * pueden medir sin una cámara y una mano delante:
+ *
+ *   MEDIDO — el descriptor de trazos costaba 43,8 ms por llamada en el peor
+ *   caso (un garabato de tres trazos enredados). Ahora cuesta 0,56 ms: 60
+ *   veces menos. Está en pinchdraw-trazos.js y se comprueba con
+ *   `node herramientas/medir_descriptor.js`. Era el grueso del problema.
+ *
+ *   MEDIDO — el feedback en vivo pasa de 12 a 5 recálculos por segundo, y a
+ *   2,5 mientras la mano va deprisa.
+ *
+ *   RAZONADO — la cámara baja de 1280x720 a 640x480: cuatro veces menos
+ *   píxeles que analizar. Los landmarks de MediaPipe vienen normalizados 0..1,
+ *   así que la lógica de gestos no distingue una resolución de otra.
+ *
+ *   NO MEDIDO — modelComplexity y videoCSS afectan a la calidad del
+ *   seguimiento y del vídeo, y elegir por ellos sin poder ver el resultado
+ *   sería adivinar. En su lugar los decide la propia app: mide sus FPS y baja
+ *   la calidad SÓLO si hace falta (ver calidadAdaptativa más abajo). Así una
+ *   máquina holgada no pierde nada y una justa se recupera sola.
+ */
 const perf={
-  videoCSS:false,        // false = vídeo dibujado en el canvas (comportamiento actual)
-  badgeOnChange:false,   // false = se escribe stateBadge en cada frame (actual)
-  complejidad:1,         // modelComplexity de MediaPipe (actual)
+  videoCSS:false,        // lo activa la calidad adaptativa si los FPS bajan
+  badgeOnChange:true,    // no reescribir el badge si el texto no cambió: mismo
+                         // resultado visible, una escritura al DOM menos por frame
+  complejidad:1,         // lo baja la calidad adaptativa si los FPS siguen bajos
+  camara:{ancho:640,alto:480},
+  adaptativa:true,       // ?perf=1 permite desactivarla con la tecla 3
   box:null,
   t:{video:0,capas:0,mano:0,total:0},n:0,frames:0,tUlt:0,fps:0
 };
+
+/*
+ * ── Calidad adaptativa ─────────────────────────────────────────────
+ *
+ * No sé en qué máquina se va a ejecutar esto, y el portátil del concurso no
+ * tiene por qué parecerse al de desarrollo. En vez de fijar una calidad a ojo,
+ * la app mide sus propios FPS y afloja sólo si va mal, en dos escalones y por
+ * orden de coste: primero lo que no afecta al reconocimiento (dejar el vídeo
+ * al compositor) y después lo que sí (el modelo ligero de MediaPipe).
+ *
+ * Nunca vuelve a subir sola: oscilar entre dos calidades se ve peor que
+ * quedarse en la baja.
+ */
+const CALIDAD={
+  fpsObjetivo:24,        // por debajo de esto se nota el tirón
+  segundosParaBajar:3,   // sostenidos, para no reaccionar a un pico
+  escalon:0              // 0 = todo alto; 1 = vídeo por CSS; 2 = además modelo ligero
+};
+let fpsAcumulado=0,fpsMuestras=0,ultimoAjuste=0;
+
+function calidadAdaptativa(fps,ahora){
+  if(!perf.adaptativa||CALIDAD.escalon>=2) return;
+  fpsAcumulado+=fps; fpsMuestras++;
+  if(!ultimoAjuste) ultimoAjuste=ahora;
+  if(ahora-ultimoAjuste<CALIDAD.segundosParaBajar*1000) return;
+
+  const medio=fpsAcumulado/Math.max(1,fpsMuestras);
+  fpsAcumulado=0; fpsMuestras=0; ultimoAjuste=ahora;
+  if(medio>=CALIDAD.fpsObjetivo) return;
+
+  CALIDAD.escalon++;
+  if(CALIDAD.escalon===1){
+    perf.videoCSS=true;
+    // Si el cambio de capa fallara, la app debe seguir dibujando: bajar la
+    // calidad nunca puede ser peor que ir lento.
+    try{ perfAplicarVideoCSS(); }
+    catch(e){ console.warn('[calidad] no se pudo pasar el vídeo al compositor:',e); }
+    console.log(`[calidad] ${medio.toFixed(1)} FPS de media: el vídeo pasa al compositor.`);
+  }else{
+    perf.complejidad=0;
+    try{ if(mpHands) mpHands.setOptions({modelComplexity:0}); }
+    catch(e){ console.warn('[calidad] no se pudo bajar modelComplexity:',e); }
+    console.log(`[calidad] ${medio.toFixed(1)} FPS de media: modelo de manos ligero.`);
+  }
+}
 let camStream=null,bgVideoEl=null;
 
 // Escritura del badge. Con badgeOnChange se evita tocar el DOM cuando el texto
@@ -1194,7 +1266,8 @@ function initMediaPipe(){
   mpHands.onResults(r=>{handsData=r.multiHandLandmarks||[];});
   new Camera(videoElement,{
     onFrame:async()=>{if(mpHands) await mpHands.send({image:videoElement});},
-    width:1280,height:720
+    // Resolución de captura: ver el comentario de `perf` más abajo.
+    width:perf.camara.ancho,height:perf.camara.alto
   }).start().catch(()=>{stateBadge.textContent='❌ ERROR CÁMARA';});
 }
 
@@ -1617,10 +1690,39 @@ function obtenerPubChemCache(smiles){
   return leerPubChemCache()[key] || null;
 }
 
+/*
+ * ── Caché de PubChem, con desalojo ──────────────────────────────────
+ *
+ * Cada entrada guarda un PNG en base64 y un SDF: entre 15 y 45 KB. localStorage
+ * da unos 5 MB, así que a las 120-200 moléculas se llena.
+ *
+ * Antes, cuando eso pasaba, setItem lanzaba, el catch lo registraba en la
+ * consola y la caché DEJABA DE FUNCIONAR para siempre, en silencio: a partir de
+ * ahí cada molécula volvía a descargarse de PubChem. El síntoma es el peor
+ * posible para una demostración —la app empieza rápida y se va volviendo lenta
+ * cuanto más se explora el catálogo— y en la consola sólo hay un aviso que
+ * nadie está mirando.
+ *
+ * Ahora hay un tope y se desaloja lo más antiguo. Si aun así no cabe, se
+ * reintenta tirando más entradas en vez de rendirse.
+ */
+const PUBCHEM_MAX_ENTRADAS = 120;
+
+// Deja las `limite` entradas más recientes. Las que no tienen fecha son de una
+// versión anterior del formato y se van primero.
+function podarPubChemCache(cache, limite){
+  const claves = Object.keys(cache);
+  if(claves.length <= limite) return cache;
+  claves.sort((a,b) => (cache[b]?.guardado_en || 0) - (cache[a]?.guardado_en || 0));
+  const podado = {};
+  claves.slice(0, limite).forEach(k => { podado[k] = cache[k]; });
+  return podado;
+}
+
 function guardarPubChemCache(smiles, data){
   const key = smilesKey(smiles);
   if(!key || !data) return;
-  const cache = leerPubChemCache();
+  let cache = leerPubChemCache();
   cache[key] = {
     imagen_2d:    data.imagen_2d    || null,
     sdf:          data.sdf          || null,
@@ -1632,10 +1734,28 @@ function guardarPubChemCache(smiles, data){
   const canon = data.propiedades?.CanonicalSMILES;
   if(canon && canon !== key) cache[canon] = cache[key];
 
-  try{
-    localStorage.setItem(PUBCHEM_CACHE_KEY, JSON.stringify(cache));
-  }catch(e){
-    console.warn('No se pudo guardar la caché PubChem (posible límite de localStorage).', e);
+  cache = podarPubChemCache(cache, PUBCHEM_MAX_ENTRADAS);
+
+  /*
+   * Aunque se respete el tope, el navegador puede seguir diciendo que no cabe:
+   * el límite real es de bytes, no de entradas, y lo comparte con el historial
+   * y las preferencias. Se recorta a la mitad y se reintenta; si tras varios
+   * intentos sigue sin caber, se deja la caché como estaba en vez de perderla
+   * entera.
+   */
+  let limite = Object.keys(cache).length;
+  for(let intento = 0; intento < 4; intento++){
+    try{
+      localStorage.setItem(PUBCHEM_CACHE_KEY, JSON.stringify(cache));
+      return;
+    }catch(e){
+      limite = Math.floor(limite / 2);
+      if(limite < 1){
+        console.warn('No cabe nada en la caché PubChem; se sigue sin ella.', e);
+        return;
+      }
+      cache = podarPubChemCache(cache, limite);
+    }
   }
 }
 
@@ -2787,13 +2907,28 @@ new p5(p=>{
   // hacerlo en cada frame era el mayor consumo de CPU del bucle. A 12 Hz el
   // texto sigue sintiéndose inmediato para el ojo. forzar=true lo salta.
   let ultimoFeedbackTs=0;
-  const FEEDBACK_MS=80;
+  /*
+   * 80 ms eran 12 recálculos por segundo. Es un texto de ayuda que lee una
+   * persona: a 5 por segundo ya se siente inmediato y se hace la mitad de
+   * trabajo. Lo que se ahorra no es el texto, es el descriptor que hay detrás.
+   */
+  const FEEDBACK_MS=200;
+  /*
+   * Y mientras la mano va deprisa, ni eso. Si desde el último cálculo han
+   * entrado muchos puntos, la persona está en pleno trazo: el aviso de "parece
+   * un hexágono" no le sirve de nada a media curva, y es justo el momento en
+   * que menos CPU sobra. Se espera al doble de intervalo.
+   */
+  const PUNTOS_MOV_RAPIDO=10;
+  let puntosDesdeFeedback=0;
 
   function actualizarFeedbackEnVivo(forzar=false){
     if(!forzar){
       const ahora=performance.now();
-      if(ahora-ultimoFeedbackTs<FEEDBACK_MS) return feedbackCache;
+      const rapido=puntosDesdeFeedback>PUNTOS_MOV_RAPIDO;
+      if(ahora-ultimoFeedbackTs<(rapido?FEEDBACK_MS*2:FEEDBACK_MS)) return feedbackCache;
       ultimoFeedbackTs=ahora;
+      puntosDesdeFeedback=0;
     }
     const st=trazoActivoParaFeedback();
     if(!st){
@@ -2817,7 +2952,7 @@ new p5(p=>{
     if(!cur) return;
     cur.raw.push({x,y});
     const sm=sP({x,y}),sp=cur.sm;
-    if(!sp.length||Math.hypot(sm.x-sp[sp.length-1].x,sm.y-sp[sp.length-1].y)>2){sp.push(sm);marcarCambio();}
+    if(!sp.length||Math.hypot(sm.x-sp[sp.length-1].x,sm.y-sp[sp.length-1].y)>2){sp.push(sm);puntosDesdeFeedback++;marcarCambio();}
     if(sp.length<2) return;
     const ctx=dc.drawingContext,n=sp.length,p1=sp[n-2],p2=sp[n-1];
     ctx.shadowBlur=0;ctx.lineCap='round';ctx.lineJoin='round';
@@ -2954,7 +3089,7 @@ new p5(p=>{
     p.createCanvas(p.windowWidth,p.windowHeight);
     dc=p.createGraphics(p.windowWidth,p.windowHeight);dc.clear();
     construirGrid();
-    navigator.mediaDevices.getUserMedia({video:{width:1280,height:720},audio:false})
+    navigator.mediaDevices.getUserMedia({video:{width:perf.camara.ancho,height:perf.camara.alto},audio:false})
       .then(s=>{
         camStream=s;               // lo reutiliza el modo perfilado para el fondo por CSS
         vc=p.createVideo('');
@@ -3015,7 +3150,10 @@ new p5(p=>{
       if(cambio) actualizarFeedbackEnVivo(true);
       wasD=false;
     }
-    if(PERF) perfRegistrar(_t0,_t1,_t2,performance.now());
+    // El reloj corre siempre, no sólo con ?perf=1: la calidad adaptativa
+    // necesita saber a cuántos FPS va la app. Sin ?perf=1 no se escribe nada
+    // en pantalla, así que el coste es un contador y una resta.
+    perfRegistrar(_t0,_t1,_t2,performance.now());
   };
 });
 
@@ -3032,6 +3170,7 @@ function perfRegistrar(t0,t1,t2,t3){
   if(!perf.tUlt){perf.tUlt=ahora;return;}
   if(ahora-perf.tUlt<500) return;
   perf.fps=perf.frames*1000/(ahora-perf.tUlt);
+  calidadAdaptativa(perf.fps,ahora);
   const n=perf.n||1;
   if(perf.box) perf.box.textContent=
     `FPS  ${perf.fps.toFixed(1)}\n`+
@@ -3042,6 +3181,8 @@ function perfRegistrar(t0,t1,t2,t3){
     `──────────────\n`+
     `[1] video: ${perf.videoCSS?'CSS (nuevo)':'canvas (actual)'}\n`+
     `[2] complexity: ${perf.complejidad}\n`+
+    `[3] adaptativa: ${perf.adaptativa?'si':'no'} (escalon ${CALIDAD.escalon})\n`+
+    `camara: ${perf.camara.ancho}x${perf.camara.alto}\n`+
     `[3] badge: ${perf.badgeOnChange?'al cambiar':'cada frame'}\n`+
     `[0] reiniciar contadores`;
   perf.t={video:0,capas:0,mano:0,total:0};perf.n=0;perf.frames=0;perf.tUlt=ahora;
@@ -3090,6 +3231,9 @@ function perfInit(){
     if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA')) return;
     if(e.key==='1'){perf.videoCSS=!perf.videoCSS;perfAplicarVideoCSS();}
     else if(e.key==='2'){perf.complejidad=perf.complejidad?0:1;if(mpHands)mpHands.setOptions({modelComplexity:perf.complejidad});}
+    // Con la calidad adaptativa activa no se puede comparar A/B a mano: la
+    // app cambiaria los ajustes por debajo. La tecla 3 la desconecta.
+    else if(e.key==='3'){perf.adaptativa=!perf.adaptativa;}
     else if(e.key==='3'){perf.badgeOnChange=!perf.badgeOnChange;}
     else if(e.key==='0'){perf.t={video:0,capas:0,mano:0,total:0};perf.n=0;perf.frames=0;perf.tUlt=performance.now();}
   });
@@ -3126,7 +3270,7 @@ function aplicarModo(modo){
   pintarBarraEstado();
   const btn = document.getElementById('btn-modo');
   if(btn){
-    btn.textContent = modo === 'pro' ? '🔬 MODO PROFESIONAL' : ' MODO NIÑO';
+    btn.textContent = modo === 'pro' ? '🔬 MODO PROFESIONAL' : '🧒 MODO NIÑO';
     btn.setAttribute('aria-pressed', modo === 'pro' ? 'true' : 'false');
   }
   // Lo ya pintado se vuelve a pintar: si se cambia de modo con una ficha

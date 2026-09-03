@@ -175,6 +175,24 @@
    */
   const CIERRE_MAX      = 0.50;
   const PASO_REMUESTREO = 0.02;   // separación entre puntos tras normalizar
+
+  /*
+   * Tope de puntos por trazo, y la razón de que exista.
+   *
+   * Remuestrear con un paso FIJO deja el número de puntos sin límite: cuanto
+   * más largo el trazo, más puntos. Un garabato de tres trazos enredados —lo
+   * que sale al mover la mano deprisa sin intención— llegaba a 1441 puntos por
+   * trazo. Dos de las medidas del descriptor comparan cada punto de un trazo
+   * con cada punto del otro, así que eso son 2,08 millones de comparaciones y
+   * 44 ms por llamada. A doce llamadas por segundo, medio segundo de CPU por
+   * segundo gastado sólo aquí: de ahí los tirones al mover la mano rápido.
+   *
+   * Con el tope, un trazo largo se remuestrea más grueso en vez de generar más
+   * puntos. 256 no recorta ninguna figura del conjunto dibujable —la más
+   * poblada es el zig-zag del octano con 246— así que las 15 formas se miden
+   * exactamente igual que antes y sólo se abaratan los garabatos.
+   */
+  const MAX_PUNTOS_TRAZO = 256;
   const TOQUE_MAX       = 0.15;   // a qué distancia se considera que dos trazos se tocan
   const BORDE_CRUCE     = 0.18;   // fracción de cada extremo que no cuenta como cruce
   const MAX_TRAZOS      = 3;      // por encima de 3 trazos ya no se distingue nada más
@@ -214,10 +232,12 @@
     const escala = Math.max(c.w, c.h);
     if (!(escala > 0)) return null;
     return {
-      trazos: limpios.map(pts => remuestrear(
-        pts.map(p => ({ x: (p.x - c.x0) / escala, y: (p.y - c.y0) / escala })),
-        PASO_REMUESTREO
-      ))
+      trazos: limpios.map(pts => {
+        const norm = pts.map(p => ({ x: (p.x - c.x0) / escala, y: (p.y - c.y0) / escala }));
+        // El paso se ensancha lo justo para no pasar del tope de puntos.
+        const paso = Math.max(PASO_REMUESTREO, longitud(norm) / MAX_PUNTOS_TRAZO);
+        return remuestrear(norm, paso);
+      })
     };
   }
 
@@ -289,12 +309,26 @@
 
       // Punto del trazo principal más cercano al secundario, expresado como
       // recorrido 0..1 a lo largo del principal.
+      /*
+       * Punto del principal más cercano al secundario. Es la otra comparación
+       * de todos contra todos del descriptor, así que antes de medir de verdad
+       * se descartan los segmentos que no pueden ganar: si un segmento está más
+       * lejos en X o en Y que la mejor distancia encontrada hasta ahora, no
+       * hace falta calcular la distancia real. Sale más barato que la raíz
+       * cuadrada que ahorra.
+       */
       let mejorD = Infinity, mejorT = 0, recorrido = 0;
       const bruto = trazos[iPrincipal];
       for (let i = 1; i < bruto.length; i++) {
-        const seg = Math.hypot(bruto[i].x - bruto[i - 1].x, bruto[i].y - bruto[i - 1].y);
-        for (const p of sec) {
-          const d = distPuntoSegmento(p, bruto[i - 1], bruto[i]);
+        const a = bruto[i - 1], b = bruto[i];
+        const seg = Math.hypot(b.x - a.x, b.y - a.y);
+        const sx0 = Math.min(a.x, b.x), sx1 = Math.max(a.x, b.x);
+        const sy0 = Math.min(a.y, b.y), sy1 = Math.max(a.y, b.y);
+        for (let k = 0; k < sec.length; k++) {
+          const p = sec[k];
+          if (p.x < sx0 - mejorD || p.x > sx1 + mejorD ||
+              p.y < sy0 - mejorD || p.y > sy1 + mejorD) continue;
+          const d = distPuntoSegmento(p, a, b);
           if (d < mejorD) { mejorD = d; mejorT = largoPrincipal ? (recorrido + seg / 2) / largoPrincipal : 0; }
         }
         recorrido += seg;
@@ -337,6 +371,17 @@
      * contara como cruce, la T y la cruz del metano serían la misma cosa cada
      * vez que a alguien se le pasa un poco el palo. Al exigir que el corte
      * caiga lejos de los extremos de ambos trazos, la T deja de bailar.
+     */
+    /*
+     * Aquí se probó un descarte por cajas envolventes —si las cajas de dos
+     * trazos ni se rozan, no pueden cruzarse— y se quitó tras medirlo: sale
+     * NEGATIVO, un 3 % de media sobre las 11 formas de varios trazos. Gana
+     * donde los trazos están separados (ozono +26 %, etilenglicol +23 %) y
+     * pierde donde se solapan (benceno −27 %, amoníaco −37 %), porque hay que
+     * calcular las cajas siempre y en esas figuras no descartan nada. Con el
+     * tope de puntos ya puesto, el bucle que evitaría es demasiado corto para
+     * pagar el trámite. Se deja anotado para que nadie lo vuelva a añadir
+     * pensando que es gratis.
      */
     let cruce = 0;
     for (let i = 0; i < trazos.length && !cruce; i++) {
