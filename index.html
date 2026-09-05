@@ -496,7 +496,7 @@
       transition:background-color 240ms ease,color 240ms ease,
                  border-color 240ms ease;}
     /* ── Modo profesional ─────────────────────────────────────────────
-       Todo lo marcado .solo-pro se oculta en modo niño. El modo niño es el
+       Todo lo marcado .solo-pro se oculta en . El  es el
        de por defecto y no gana ni pierde nada respecto a lo que había. */
     body[data-modo="nino"] .solo-pro{display:none !important;}
     /* El conmutador vive dentro de #ui, arriba a la izquierda, como primer
@@ -703,7 +703,7 @@
   <!-- Grupo izquierdo: el conmutador de modo va primero, arriba a la
        izquierda. Se agrupa con el título en un flex en vez de posicionarlo
        de forma absoluta, para que el ancho del botón —que cambia entre
-       "MODO NIÑO" y "MODO PROFESIONAL"— no descoloque nada. -->
+       "" y "MODO PROFESIONAL"— no descoloque nada. -->
   <div id="ui-izquierda">
     <button id="btn-modo" type="button"
             title="Cambia entre la vista sencilla y la vista con todos los datos"> MODO NIÑO</button>
@@ -3270,7 +3270,7 @@ function aplicarModo(modo){
   pintarBarraEstado();
   const btn = document.getElementById('btn-modo');
   if(btn){
-    btn.textContent = modo === 'pro' ? '🔬 MODO PROFESIONAL' : '🧒 MODO NIÑO';
+    btn.textContent = modo === 'pro' ? '🔬 MODO PROFESIONAL' : ' MODO NIÑO';
     btn.setAttribute('aria-pressed', modo === 'pro' ? 'true' : 'false');
   }
   // Lo ya pintado se vuelve a pintar: si se cambia de modo con una ficha
