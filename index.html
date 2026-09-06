@@ -55,6 +55,23 @@
         }
         var off = document.getElementById('gnn-servidor-off');
         if (off) off.style.display = 'none';
+
+        /*
+         * ── ARREGLO: la barra de credenciales salía vacía al recargar ──
+         *
+         * Cambio aparte del layout adaptativo; se anota aquí para poder
+         * separarlo si algo se tuerce.
+         *
+         * `aplicarModo(modoGuardado())` corre al evaluar el script, antes de
+         * que existan los modelos, y `pintarBarraEstado()` sólo se llamaba
+         * desde `aplicarModo()`. Resultado: si tenías guardado el modo
+         * profesional, al recargar la barra decía sólo "MODO PROFESIONAL" y
+         * las métricas no aparecían hasta cambiar de modo dos veces.
+         *
+         * Se repinta cuando la química termina, que es cuando los modelos
+         * —de donde salen las credenciales— ya están cargados.
+         */
+        if (typeof pintarBarraEstado === 'function') pintarBarraEstado();
       }).catch(function (e) {
         if (texto) {
           texto.textContent = 'No se pudo cargar la química: ' + e.message;
@@ -83,12 +100,19 @@
     #live-detection.ok{color:#06d6a0;border-color:#064a3a;background:rgba(6,214,160,0.07);}
     #live-detection.warn{color:#ffbe0b;border-color:#554400;background:rgba(255,190,11,0.07);}
     #live-detection.wait{color:#6c7480;border-color:#30343c;}
-    #correction-panel{position:fixed;top:64px;right:20px;z-index:20;display:flex;flex-direction:column;gap:4px;align-items:flex-end;}
+    /* Debajo de #ui, que mide lo que mide según envuelvan el título y el
+       conmutador de modo. Con `top:64px` se metía dentro. */
+    #correction-panel{position:fixed;top:calc(var(--alto-ui, 64px) + 8px);right:20px;z-index:20;display:flex;flex-direction:column;gap:4px;align-items:flex-end;}
     #correction-panel label{font-family:'Courier New',monospace;font-size:14px;color:#b9c6d6;letter-spacing:2px;}
     #eps-row{display:flex;align-items:center;gap:6px;}
     #eps-slider{width:100px;accent-color:#888;cursor:pointer;}
     #eps-value{font-family:'Courier New',monospace;font-size:10px;color:#666;width:32px;text-align:right;}
-    #hint{position:fixed;bottom:100px;left:50%;transform:translateX(-50%);font-family:'Courier New',monospace;font-size:14px;color:#ff8a8a;letter-spacing:1px;white-space:nowrap;pointer-events:none;z-index:20;text-align:center;line-height:1.6;}
+    /* `bottom` medido y no fijo: la fila de acciones envuelve y crece hacia
+       arriba, de modo que a 1024 px de ancho ocupa 154 px y los 100 px de
+       antes dejaban a #hint encima de dos botones. */
+    #hint{position:fixed;
+      bottom:calc(var(--alto-lanzadores, 32px) + var(--alto-botones, 44px) + 26px);
+      left:50%;transform:translateX(-50%);font-family:'Courier New',monospace;font-size:14px;color:#ff8a8a;letter-spacing:1px;white-space:nowrap;pointer-events:none;z-index:20;text-align:center;line-height:1.6;}
     #buttons{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);display:flex;gap:10px;z-index:20;flex-wrap:wrap;justify-content:center;max-width:calc(100vw - 230px);}
     .btn{font-family:'Courier New',monospace;font-size:11px;letter-spacing:2px;padding:7px 18px;background:rgba(0,0,0,0.8);border-radius:6px;cursor:pointer;transition:all 0.2s;color:#666;border:1px solid #333;}
     .btn:hover{border-color:#bbb;color:#fff;}
@@ -108,8 +132,16 @@
     #btn-export{border-color:#457b9d;color:#8ecae6;}
     #btn-export:hover{background:rgba(69,123,157,0.15);border-color:#8ecae6;color:#fff;}
 
+    /* ── Lanzadores de paneles (historial y guía) ───────────────
+       Antes cada botón llevaba su propio `position:fixed` con un `right:`
+       distinto. Se veían como una fila pero no lo eran: nada impedía que otro
+       elemento se les metiera debajo, y es lo que hacía #buttons al estrechar
+       la ventana. Ahora son una fila de verdad y se mueven como un bloque. */
+    #lanzadores{position:fixed;bottom:18px;right:20px;z-index:25;
+      display:flex;gap:15px;align-items:flex-end;}
+
     /* ── Botón y panel de historial persistente ───────────────────────── */
-    #btn-historial{position:fixed;bottom:18px;right:122px;z-index:25;font-family:'Courier New',monospace;font-size:10px;letter-spacing:2px;padding:7px 15px;background:rgba(0,0,0,0.88);border-radius:6px;cursor:pointer;border:1px solid #315070;color:#8ecae6;transition:all 0.2s;}
+    #btn-historial{font-family:'Courier New',monospace;font-size:10px;letter-spacing:2px;padding:7px 15px;background:rgba(0,0,0,0.88);border-radius:6px;cursor:pointer;border:1px solid #315070;color:#8ecae6;transition:all 0.2s;}
     #btn-historial:hover{border-color:#8ecae6;color:#d8f3ff;box-shadow:0 0 10px rgba(142,202,230,0.25);}
     #historial-panel{position:fixed;right:0;top:0;bottom:0;width:315px;background:#07090e;border-left:1px solid #183044;z-index:156;display:flex;flex-direction:column;transform:translateX(100%);transition:transform 0.3s ease;box-shadow:-12px 0 40px rgba(0,0,0,0.85);}
     #historial-panel.open{transform:translateX(0);}
@@ -134,13 +166,49 @@
     .historial-action{flex:1;font-family:'Courier New',monospace;font-size:9px;letter-spacing:1px;padding:7px;border-radius:6px;background:#0d1219;border:1px solid #1e2530;color:#668;cursor:pointer;}
     .historial-action:hover{border-color:#8ecae6;color:#d8f3ff;}
 
+    /* ── Zona de cámara ──────────────────────────────────────────────
+       La posición la lleva el contenedor y no el preview: así el selector se
+       coloca solo debajo, y cuando el preview se oculta en una pantalla baja
+       el selector se queda donde estaba en vez de irse con él. */
+    #camara-zona{position:fixed;left:20px;z-index:18;
+      bottom:calc(var(--alto-lanzadores, 32px) + var(--alto-botones, 44px) + 18px);
+      display:flex;flex-direction:column;align-items:flex-start;gap:6px;
+      pointer-events:none;}
+    /* El selector sí recibe clics; el resto de la zona no, para no comerse
+       espacio de dibujo. */
+    #selector-camara{pointer-events:auto;max-width:160px;
+      font-family:'Courier New',monospace;font-size:11px;
+      background:rgba(5,7,11,0.92);color:#cbd5e1;
+      border:1px solid rgba(255,255,255,0.22);border-radius:6px;
+      padding:5px 6px;cursor:pointer;outline:none;}
+    #selector-camara:hover{border-color:#8ecae6;color:#e8f6ff;}
+    #selector-camara:focus{border-color:#8ecae6;box-shadow:0 0 0 2px rgba(142,202,230,0.25);}
+    #selector-camara[hidden]{display:none;}
+    /* Con la cámara en error se va el preview —es un rectángulo negro que no
+       aporta nada— y también el recordatorio de gestos: sin cámara no hay
+       gestos, y lo único que hay que leer es el error. Además libera el sitio
+       que el aviso necesita, que si no acaba encima de la fila de botones. */
+    body.camara-en-error #camera-preview,
+    body.camara-en-error #hint{display:none;}
+
+    /* El aviso de cámara no se puede quedar en la consola: si la cámara no
+       arranca, la app no hace nada y hay que decir por qué. */
+    #aviso-camara{pointer-events:auto;max-width:min(300px,70vw);
+      font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+      font-size:12px;line-height:1.5;
+      background:rgba(58,16,16,0.94);color:#ffd7d7;
+      border:1px solid #8a2020;border-left:3px solid #ef233c;
+      border-radius:0 6px 6px 0;padding:8px 10px;}
+    #aviso-camara[hidden]{display:none;}
+    #aviso-camara b{color:#fff;}
+
     /* ── Recuadro de cámara: preview visible sin bloquear la interacción ── */
-    #camera-preview{position:fixed;left:20px;bottom:86px;width:160px;height:120px;border:1px solid rgba(255,255,255,0.16);border-radius:10px;background:#05070b;overflow:hidden;z-index:18;pointer-events:none;box-shadow:0 0 24px rgba(0,0,0,0.65);}
+    #camera-preview{position:relative;width:160px;height:120px;border:1px solid rgba(255,255,255,0.16);border-radius:10px;background:#05070b;overflow:hidden;pointer-events:none;box-shadow:0 0 24px rgba(0,0,0,0.65);}
     #camera-preview video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);opacity:0.82;}
     #camera-preview.offline video{opacity:0.18;}
     #camera-preview-label{position:absolute;left:7px;top:6px;font-family:'Courier New',monospace;font-size:9px;letter-spacing:1px;color:#cbd5e1;background:rgba(0,0,0,0.62);border:1px solid rgba(255,255,255,0.10);border-radius:6px;padding:3px 6px;}
     /* ── BOTÓN GUÍA ───────────────────────────────────── */
-    #btn-guia{position:fixed;bottom:18px;right:20px;z-index:25;font-family:'Courier New',monospace;font-size:10px;letter-spacing:2px;padding:7px 15px;background:rgba(0,0,0,0.88);border-radius:6px;cursor:pointer;border:1px solid #3a5a2a;color:#7aba4a;transition:all 0.2s;}
+    #btn-guia{font-family:'Courier New',monospace;font-size:10px;letter-spacing:2px;padding:7px 15px;background:rgba(0,0,0,0.88);border-radius:6px;cursor:pointer;border:1px solid #3a5a2a;color:#7aba4a;transition:all 0.2s;}
     #btn-guia:hover{border-color:#afd870;color:#cff0a0;box-shadow:0 0 10px rgba(175,216,112,0.25);}
 
 
@@ -478,7 +546,10 @@
        de debajo baje exactamente lo que la barra ocupa y no un número fijo que
        se queda corto en cuanto el texto envuelve. */
     body[data-modo="pro"] #ui{padding-top:calc(var(--altura-barra, 30px) + 10px);}
-    body[data-modo="pro"] #correction-panel{top:calc(var(--altura-barra, 30px) + 42px);}
+    /* En modo profesional la barra de credenciales empuja a #ui con su
+       propio padding, así que --alto-ui ya la incluye: una sola fórmula
+       sirve para los dos modos. */
+    body[data-modo="pro"] #correction-panel{top:calc(var(--alto-ui, 64px) + 8px);}
 
     /* Colores de la barra. Se definen aquí como variables para que el tema
        claro del punto 3 sólo tenga que redefinirlas. */
@@ -517,7 +588,7 @@
     /* Arriba y centrado: ocupa el hueco que dejan el título (izquierda) y el
    indicador de detección (derecha). Se descuelga de la barra de estado, cuya
    altura real publica el JS en --altura-barra. */
-#smiles-panel{position:fixed;top:calc(var(--altura-barra, 30px) + 12px);
+#smiles-panel{position:fixed;top:calc(var(--alto-ui, 64px) + 8px);
       left:50%;transform:translateX(-50%);
       z-index:26;display:flex;gap:8px;align-items:center;flex-wrap:wrap;
       justify-content:center;background:var(--smiles-fondo);border:1px solid var(--smiles-borde);
@@ -605,7 +676,7 @@
     .reaccion-pick-btn:hover{background:rgba(74,158,255,0.15);border-color:#4a9eff;color:#fff;}
     .reaccion-pick-btn.activo{border-color:#06d6a0;color:#06d6a0;background:rgba(6,214,160,0.1);}
 
-    #reactivos-panel{position:fixed;top:64px;left:20px;z-index:20;display:flex;flex-direction:column;gap:6px;pointer-events:none;}
+    #reactivos-panel{position:fixed;top:calc(var(--alto-ui, 64px) + 8px);left:20px;z-index:20;display:flex;flex-direction:column;gap:6px;pointer-events:none;}
     .reactivo-chip{font-family:'Courier New',monospace;font-size:9px;letter-spacing:1px;padding:5px 12px;border-radius:20px;border:1px solid #222;background:rgba(0,0,0,0.6);color:#444;white-space:nowrap;transition:all 0.2s;}
     .reactivo-chip.lleno{color:#fff;border-color:#4a9eff;}
 
@@ -678,6 +749,224 @@
     @keyframes rxPulse    {0%,100%{opacity:0.3;}50%{opacity:1;}}
     @keyframes rxReactMove{0%,100%{transform:translateX(0);}50%{transform:translateX(5px);}}
     @keyframes rxProdMove {0%,100%{transform:translateX(0);}50%{transform:translateX(-5px);}}
+
+    /* ══════════════════════════════════════════════════════════════════
+       ADAPTACIÓN A PANTALLAS PEQUEÑAS
+       ══════════════════════════════════════════════════════════════════
+
+       Casi toda la interfaz de encima del lienzo son elementos
+       `position:fixed` colocados por coordenadas. Eso funciona mientras la
+       ventana se parezca a la que se tenía delante al escribirlas; en cuanto
+       estrecha, cada elemento sigue obedeciendo su coordenada y acaban unos
+       encima de otros.
+
+       Lo medido antes de tocar nada, con la ventana a 375x667:
+
+         #hint             de -142 a 517  → se salía 142 px por cada lado
+         #buttons          145 x 441 px   → columna de nueve botones, el 66 %
+                                            del alto de la pantalla
+         #btn-historial    solapado 127x29 con #btn-reaccion
+         #camera-preview   solapado con la columna de botones
+         #correction-panel solapado con #live-detection
+
+       Y a 667x375 (teléfono apaisado, el caso duro): #btn-historial solapado
+       60x29 con #btn-reaccion.
+
+       Las tres tarjetas modales (#catalogo-card, #mol-card, #reaccion-card)
+       NO se salían: ya tenían `width:94%` con `max-width`, y `max-height` en
+       vh con scroll interno. Aquí sólo se les pone además un tope en píxeles
+       para que el margen no dependa de un porcentaje.
+
+       Las coordenadas de abajo no son números inventados: se apoyan en los
+       altos reales que mide `medirZonas()` y publica como variables CSS
+       (--alto-ui, --alto-smiles, --alto-lanzadores, --alto-botones). Un
+       número fijo se queda corto en cuanto el texto envuelve, que es
+       exactamente lo que ya había pasado con la barra del modo profesional.
+       ══════════════════════════════════════════════════════════════════ */
+
+    /* ── Tableta y por debajo ─────────────────────────────────────────
+       Ningún panel puede ser más ancho que la ventana. */
+    @media (max-width: 1024px){
+      #catalogo-card{max-width:min(760px, calc(100vw - 24px));}
+      #reaccion-card{max-width:min(640px, calc(100vw - 24px));}
+      #mol-card     {max-width:min(560px, calc(100vw - 24px));}
+      #historial-panel{width:min(315px, 100vw);}
+      #guia-panel     {width:min(390px, 100vw);}
+      /* El cuerpo ya hace scroll dentro; el tope de alto evita que el
+         encabezado se salga por arriba con la ventana muy baja. */
+      #catalogo-card,#mol-card,#reaccion-card{max-height:calc(100vh - 24px);}
+    }
+
+    /* ── Teléfono y tableta estrecha ──────────────────────────────────
+       Aquí se rehace la barra inferior y se apila la zona superior. */
+    @media (max-width: 900px){
+
+      /* Zona superior. El título ocupaba 228 px y empujaba a #ui hasta 124 px
+         de alto, y a esa altura llegaba #live-detection, que #correction-panel
+         tapaba desde su `top:64px` fijo. Se encoge el título, se quita el
+         subtítulo —es decorativo— y lo de debajo se cuelga del alto medido. */
+      #title{font-size:15px;letter-spacing:2px;}
+      #subtitle{display:none;}
+      #ui{padding:10px 12px;}
+      #live-detection{max-width:min(330px, 52vw);}
+      /* A 11 px, "14 px" ya no cabe en los 32 px de ancho de antes y
+         partía a dos líneas. */
+      #eps-value{width:42px;}
+      /* ── El modo profesional, comprimido ──────────────────────────
+         Sumando la barra de credenciales (2 líneas), #ui, el panel de SMILES
+         a tres filas y los dos carriles de abajo salían 395 px en una pantalla
+         de 375: la corrección acababa encima de ANALIZAR y REACCIÓN. Se
+         comprime la parte de arriba, que es la que sobra, en vez de esconder
+         un control. */
+      #estado-pro{font-size:11px;padding:4px 10px;line-height:1.4;}
+      #btn-modo{font-size:11px;padding:6px 10px;letter-spacing:0.5px;}
+      #smiles-panel{top:calc(var(--alto-ui, 64px) + 8px);max-width:calc(100vw - 20px);
+        padding:6px 8px;gap:6px;}
+      /* La etiqueta sobra: el `placeholder` ya enseña qué es un SMILES. */
+      #smiles-panel label{display:none;}
+      #smiles-input{min-width:0;flex:1;font-size:13px;padding:6px 8px;}
+      #smiles-btn{padding:6px 10px;}
+      #correction-panel,
+      body[data-modo="pro"] #correction-panel{
+        top:calc(var(--alto-ui, 64px) + var(--alto-smiles, 0px) + 14px);right:12px;}
+      #reactivos-panel{
+        top:calc(var(--alto-ui, 64px) + var(--alto-smiles, 0px) + 14px);left:12px;}
+
+      /* Barra inferior: dos carriles, colocados uno a partir del otro.
+
+           carril 1 (abajo)  #lanzadores  → HISTORIAL y GUÍA
+           carril 2 (encima) #buttons     → las acciones de dibujo
+           encima de ambos   #hint        → el recordatorio de gestos
+
+         Antes eran cinco elementos anclados a `bottom` por separado y sin
+         saber unos de otros: la columna de acciones crecía hacia arriba y se
+         metía debajo de los dos de la esquina. */
+      #lanzadores{left:12px;right:12px;bottom:10px;justify-content:center;}
+      #buttons{
+        left:12px;right:12px;transform:none;max-width:none;
+        bottom:calc(var(--alto-lanzadores, 32px) + 18px);
+        gap:6px;}
+
+      /* Los botones pasan a icono: los nueve con su texto sumaban unos
+         1500 px y no caben ni en dos filas a 667 px de ancho. El nombre no se
+         pierde —sigue en `title` y en `aria-label`— y la etiqueta del modo de
+         dibujo se queda visible porque es estado, no acción. */
+      .btn-txt{display:none;}
+      .btn{padding:7px 10px;letter-spacing:0;font-size:15px;}
+      #btn-analizar{font-size:15px;padding:7px 12px;}
+      #drawing-mode-label{font-size:11px;}
+
+      /* #hint tenía `white-space:nowrap`: en pantalla estrecha se salía por
+         los dos lados en vez de partirse. El anclaje por altura medida ya
+         está en la regla base y vale para cualquier ancho. */
+      #hint{white-space:normal;max-width:calc(100vw - 24px);
+        font-size:12px;line-height:1.5;}
+
+      /* Accesorio, no control: se encoge y se aparta del carril de botones.
+         El movimiento lo hace el contenedor; el preview sólo se encoge. */
+      #camara-zona{left:8px;}
+      #camera-preview{width:110px;height:82px;}
+
+    }
+
+    /* ── Pantalla baja (teléfono apaisado) ────────────────────────────
+       A 375 px de alto no caben a la vez el preview de cámara, el recordatorio
+       de gestos y los dos carriles de botones sin comerse el lienzo, que es
+       donde se dibuja. Se van los dos accesorios: el preview (decorativo, ya
+       lleva `pointer-events:none`) y el recordatorio, que sigue entero en la
+       guía. */
+    @media (max-height: 480px){
+      /* Se va el preview, no el selector: elegir cámara sigue siendo un
+         control y en un teléfono apaisado hay dos (frontal y trasera). */
+      #camera-preview{display:none;}
+      #hint{display:none;}
+    }
+
+    /* ── Dedos, no ratón ──────────────────────────────────────────────
+       44 px de alto es el mínimo razonable para tocar sin fallar. Se aplica
+       con `min-height` y no con más `padding` para no ensanchar los botones:
+       a lo ancho ya van justos. */
+    @media (pointer: coarse){
+      /* ── Nada por debajo de 11 px ──────────────────────────────────
+         El criterio no es el ancho de la ventana sino el dedo: un iPad a
+         1024 px necesita el texto más grande y una ventana de 1024 px en un
+         portátil no. Por eso vive aquí y no en un corte por ancho.
+         Eran 52 reglas entre 7 y 10 px, la mayoría en las fichas y el
+         historial. */
+      #subtitle,#live-detection,#eps-value,#drawing-mode-label,
+      #btn-historial,.historial-formula,.historial-fecha,
+      .historial-action,#camera-preview-label,#btn-guia,#catalogo-search,
+      #catalogo-count,#mol-tipo-display,#mol-img-fallback,.mol-prop-label,
+      .mol-prop-val.smiles,#mol-3d-label,.d3btn,#mol-3d-status,
+      #confianza-label,#confianza-pct,#mol-alts-label,.alt-btn,
+      #pubchem-link,.reaccion-pick-btn,.reactivo-chip,
+      #reacciones-visuales-title,.rx-visual-btn,.reaccion-input-row label,
+      #reaccion-tipo-row label,.reaccion-producto-smiles,
+      .reaccion-producto-formula,.reaccion-producto-warn,
+      #reaccion-alt-toggle,#rx-3d-hdr-title,.rx3btn,.rx-3d-slabel,
+      .rx-mol-status,.rx-mol-lbl,.rx-mol-sm,.rx-arr-heat,.rx-arr-cond{font-size:11px;}
+      #historial-sub,.historial-smiles,#historial-empty,
+      #catalogo-subtitulo,#mol-desc,#reaccion-subtitulo,
+      #reaccion-grupos-hint,.reaccion-msg-info,#reaccion-descripcion,
+      #reaccion-explicacion{font-size:12px;}
+
+      .btn,#btn-guia,#btn-historial,.historial-action,.g-tab,
+      .alt-btn,.d3btn,.rx3btn,.reaccion-pick-btn,.rx-visual-btn,
+      #smiles-btn,#guia-repetir,.guia-vel,#btn-modo{min-height:44px;}
+      #catalogo-close,#mol-close,#reaccion-close,#historial-x,#guia-x{
+        min-width:44px;min-height:44px;}
+      /* Los campos de texto también se tocan con el dedo. */
+      #catalogo-search,#guia-search,#smiles-input,#reaccion-tipo,
+      .reaccion-input-row input[type=text]{min-height:44px;}
+      /* La barra de corrección es un control de arrastre: mismo mínimo que
+         los botones. */
+      #eps-slider{height:44px;}
+    }
+
+    /* ── Lo que necesita internet ─────────────────────────────────────
+       En la versión de escritorio no hay red garantizada, y en la web se
+       puede abrir con el móvil sin cobertura. Lo que depende de PubChem se
+       oculta en vez de quedarse cargando para siempre:
+
+         #mol-3d-section  descarga el SDF 3D de PubChem
+         #rx-3d-section   lo mismo, para los productos de una reacción
+         #pubchem-link    enlace a la ficha
+
+       El dibujo, el reconocimiento de trazos, los tres modelos GNN, RDKit,
+       el catálogo de 250 y el historial son locales y siguen enteros.
+
+       Se oculta, no se quita: al volver la red reaparece solo. */
+    body[data-red="no"] #mol-3d-section,
+    body[data-red="no"] #rx-3d-section,
+    body[data-red="no"] #pubchem-link{display:none !important;}
+    .solo-sin-red{display:none;}
+    body[data-red="no"] .solo-sin-red{display:block;}
+    #aviso-sin-red{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+      font-size:13px;line-height:1.55;color:var(--p-aviso-texto);
+      margin:12px 0;padding:9px 11px;background:var(--p-aviso-fondo);
+      border-left:3px solid var(--p-aviso-borde);border-radius:0 6px 6px 0;}
+
+    /* ── Teléfono en vertical: pedir que se gire ──────────────────────
+       La app es un lienzo apaisado con una cámara apuntando a una mano: en
+       vertical no hay sitio ni para el lienzo ni para los controles. En vez
+       de encogerlo todo hasta que no sirva, se pide girar.
+
+       `display:none` sobre todo lo demás, no `opacity:0`: si sólo se tapa, el
+       navegador sigue componiendo el lienzo por detrás. */
+    #girar{display:none;}
+    @media (orientation: portrait) and (max-width: 600px){
+      body > *{display:none !important;}
+      body > #girar{
+        display:flex !important;
+        position:fixed;top:0;right:0;bottom:0;left:0;z-index:10000;
+        flex-direction:column;align-items:center;justify-content:center;
+        gap:18px;padding:32px 24px;text-align:center;background:#05070b;
+        font-family:'Courier New',monospace;}
+      #girar-icono{font-size:56px;line-height:1;}
+      #girar-titulo{font-size:17px;letter-spacing:3px;color:#fff;}
+      #girar-texto{font-size:14px;line-height:1.7;color:#a8b6c6;max-width:32ch;
+        font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;}
+    }
   </style>
 </head>
 <body>
@@ -735,10 +1024,20 @@
   Mira arriba la detección en vivo o presiona 🔬 ANALIZAR para confirmar
 </div>
 
-<!-- Preview de cámara en vivo: solo visual, no recibe clics ni afecta el dibujo -->
-<div id="camera-preview" class="offline">
-  <video id="camera-feed" autoplay muted playsinline></video>
-  <div id="camera-preview-label">📷 CÁMARA</div>
+<!-- Zona de cámara: el preview, el selector y los avisos de error.
+     Van juntos porque los tres hablan de lo mismo y porque el selector tiene
+     que seguir alcanzable cuando el preview se oculta por falta de alto: lo
+     que sobra en una pantalla baja es el accesorio, no el control. -->
+<div id="camara-zona">
+  <!-- Preview en vivo: solo visual, no recibe clics ni afecta el dibujo. -->
+  <div id="camera-preview" class="offline">
+    <video id="camera-feed" autoplay muted playsinline></video>
+    <div id="camera-preview-label">📷 CÁMARA</div>
+  </div>
+  <!-- Sólo aparece si hay dos o más cámaras. Con una sola no se enseña nada:
+       no hay que añadir ruido al 90 % de los casos. -->
+  <select id="selector-camara" hidden aria-label="Elegir cámara"></select>
+  <div id="aviso-camara" hidden role="alert"></div>
 </div>
 <!-- ── BOTÓN GUÍA ──────────────────────────────────── -->
 <!-- Marco e indicador del modo profesional. El marco es un elemento aparte
@@ -756,9 +1055,16 @@
   <button id="smiles-btn" type="button">Analizar</button>
   <div id="smiles-aviso"></div>
 </div>
-<button id="btn-guia" onclick="toggleGuia()">📚 GUÍA</button>
-<!-- Historial persistente: abre una barra lateral con las moléculas detectadas -->
-<button id="btn-historial" onclick="toggleHistorial()">🕘 HISTORIAL</button>
+<!-- Los dos lanzadores de paneles van juntos en un contenedor y no anclados
+     cada uno a su `right:`. En escritorio se ven igual que antes —fila a la
+     derecha, historial y después guía— pero ahora son un bloque: al estrechar
+     la ventana se mueven como uno solo y la fila de acciones puede colocarse
+     a partir de su alto real en vez de adivinarlo.
+     Historial persistente: abre una barra lateral con las moléculas detectadas. -->
+<div id="lanzadores">
+  <button id="btn-historial" onclick="toggleHistorial()">🕘 HISTORIAL</button>
+  <button id="btn-guia" onclick="toggleGuia()">📚 GUÍA</button>
+</div>
 
 <!-- ── PANEL HISTORIAL LATERAL ─────────────────────── -->
 <div id="historial-panel">
@@ -811,16 +1117,27 @@
   </div>
 </div>
 <div id="buttons">
-  <button class="btn" id="btn-undo">↩ DESHACER</button>
-  <button class="btn" id="btn-borrar-punto" title="Borra el último punto del trazo continuo o el último trazo separado">⌫ BORRAR ÚLTIMO TRAZO</button>
-  <button class="btn" id="btn-clear">✕ LIMPIAR</button>
-  <button class="btn" id="btn-export" title="Descarga solo el dibujo, sin interfaz ni cámara">📷 EXPORTAR PNG</button>
-  <button class="btn" id="btn-drawing-mode" type="button" title="Alterna entre pinza y dedo índice">🖐 MODO DIBUJO</button>
+  <button class="btn" id="btn-undo" title="Deshacer el último trazo" aria-label="Deshacer">↩ <span class="btn-txt">DESHACER</span></button>
+  <button class="btn" id="btn-borrar-punto" title="Borra el último punto del trazo continuo o el último trazo separado" aria-label="Borrar último trazo">⌫ <span class="btn-txt">BORRAR ÚLTIMO TRAZO</span></button>
+  <button class="btn" id="btn-clear" title="Borrar todo el dibujo" aria-label="Limpiar">✕ <span class="btn-txt">LIMPIAR</span></button>
+  <button class="btn" id="btn-export" title="Descarga solo el dibujo, sin interfaz ni cámara" aria-label="Exportar PNG">📷 <span class="btn-txt">EXPORTAR PNG</span></button>
+  <button class="btn" id="btn-drawing-mode" type="button" title="Alterna entre pinza y dedo índice" aria-label="Modo de dibujo">🖐 <span class="btn-txt">MODO DIBUJO</span></button>
   <span id="drawing-mode-label">Modo lápiz</span>
-  <button class="btn" id="btn-catalogo">⚛ CATÁLOGO 250+</button>
-  <button class="btn" id="btn-cache" title="Borrar datos locales de PubChem">🧹 CACHÉ</button>
-  <button class="btn" id="btn-analizar" disabled>🔬 ANALIZAR</button>
-  <button class="btn" id="btn-reaccion">🧪 REACCIÓN</button>
+  <button class="btn" id="btn-catalogo" title="Abrir el catálogo de 250 compuestos" aria-label="Catálogo">⚛ <span class="btn-txt">CATÁLOGO 250+</span></button>
+  <button class="btn" id="btn-cache" title="Borrar datos locales de PubChem" aria-label="Limpiar caché">🧹 <span class="btn-txt">CACHÉ</span></button>
+  <button class="btn" id="btn-analizar" disabled title="Analizar el dibujo" aria-label="Analizar">🔬 <span class="btn-txt">ANALIZAR</span></button>
+  <button class="btn" id="btn-reaccion" title="Simular una reacción" aria-label="Reacción">🧪 <span class="btn-txt">REACCIÓN</span></button>
+</div>
+
+<!-- Teléfono en vertical. La app es un lienzo apaisado con una cámara
+     apuntando a una mano: en vertical no hay sitio ni para el lienzo ni para
+     los controles. El CSS oculta el resto con display:none —no con opacity—
+     para que el navegador no siga componiendo por detrás. -->
+<div id="girar" role="alertdialog" aria-live="polite">
+  <div id="girar-icono" aria-hidden="true">📱➡️</div>
+  <div id="girar-titulo">GIRA EL APARATO</div>
+  <div id="girar-texto">PinchDraw dibuja sobre lo que ve la cámara y necesita la
+    pantalla apaisada. Gira el teléfono y la app vuelve sola.</div>
 </div>
 
 <div id="catalogo-modal" class="hidden">
@@ -866,6 +1183,10 @@
     <div id="mol-desc">—</div>
 
     <!-- VISOR 3D -->
+    <div id="aviso-sin-red" class="solo-sin-red" role="status">
+      Sin conexión: el visor 3D y el enlace a PubChem no están disponibles.
+      El análisis, los tres modelos y el catálogo funcionan igual, son locales.
+    </div>
     <div id="mol-3d-section">
       <div id="mol-3d-header">
         <span id="mol-3d-label">ESTRUCTURA 3D — PubChem</span>
@@ -1033,7 +1354,6 @@
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.3/p5.min.js"></script>
 <script src="molecules_250.js?v=6061dd6087"></script>
@@ -1043,6 +1363,9 @@
 <script>
 
 let handsData=[],videoElement=null,mpHands=null;
+// La rellena p.setup(): el <video> de p5 sólo se puede crear desde dentro del
+// sketch, así que el reparto del stream compartido entra por aquí.
+let repartirStreamP5=null;
 const stateBadge=document.getElementById('state-badge');
 const liveDetection=document.getElementById('live-detection');
 const cameraPreview=document.getElementById('camera-preview');
@@ -1065,6 +1388,13 @@ epsSlider.addEventListener('input',()=>{epsValue.textContent=epsSlider.value+' p
 //  arrancan en los valores de hoy y solo se evalúa un booleano por frame.
 // ══════════════════════════════════════════════════════
 const PERF=new URLSearchParams(location.search).has('perf');
+/*
+ * Estado de perfLab(). Vive aquí arriba, junto a PERF, porque p.draw() lo lee
+ * en cada fotograma y el sketch de p5 se crea antes que las funciones de
+ * medición: declararlo abajo lo dejaría en zona muerta durante el arranque.
+ */
+let perfLabActivo=false;
+let perfLabT={video:0,capas:0,mano:0,total:0},perfLabN=0,perfLabT0=0;
 /*
  * Valores por defecto, y por qué cada uno.
  *
@@ -1144,7 +1474,333 @@ function calidadAdaptativa(fps,ahora){
     console.log(`[calidad] ${medio.toFixed(1)} FPS de media: modelo de manos ligero.`);
   }
 }
+/*
+ * ══════════════════════════════════════════════════════════════════
+ *  CÁMARA — una sola adquisición, compartida
+ * ══════════════════════════════════════════════════════════════════
+ *
+ * Antes había DOS `getUserMedia` independientes: el que hacía por dentro el
+ * helper `Camera` de camera_utils para alimentar el modelo de manos, y el de
+ * `p.setup()` para el fondo de vídeo y el recuadro de la esquina. Ninguno
+ * decía qué dispositivo quería.
+ *
+ * Eso daba dos fallos a la vez:
+ *
+ *   1. Sin `deviceId`, el navegador entrega el dispositivo por defecto del
+ *      sistema. En Windows 11 con "Usar el teléfono como cámara web"
+ *      activado, ése es el móvil, no la webcam del portátil.
+ *   2. Se abrían dos capturas simultáneas del mismo dispositivo. Varios
+ *      controladores —y casi todas las cámaras virtuales— rechazan la
+ *      segunda, así que a veces no funcionaba ninguna.
+ *
+ * Ahora se pide UNA vez y el mismo MediaStream se reparte a los cuatro
+ * consumidores. Un MediaStream se puede asignar a varios <video> sin
+ * duplicar la captura.
+ *
+ * Consecuencia: se deja de usar el helper `Camera`, que no admite ni un
+ * stream ya abierto ni un `deviceId`. En su lugar hay un bucle propio de
+ * requestAnimationFrame más abajo.
+ */
 let camStream=null,bgVideoEl=null;
+
+const CAMARA_KEY='pinchdraw_camara_v1';
+let camDispositivos=[];        // los videoinput que se conocen
+let camActual=null;            // deviceId en uso
+let camBucle=false;            // ¿está corriendo el bucle de manos?
+// Instrumentación: la única forma de comprobar desde fuera que sólo hay una
+// captura viva, porque navigator.mediaDevices no lo dice.
+let camPeticiones=0;
+
+/*
+ * Heurística para el PRIMER arranque, cuando no hay nada guardado y hay
+ * varias cámaras. Descarta por nombre las que parecen un teléfono o una
+ * cámara virtual.
+ *
+ * Es una comparación de cadenas y va a fallar con algún fabricante: hay
+ * webcams con "virtual" en el nombre y teléfonos que no dicen "phone". No se
+ * vende como definitiva. Lo que de verdad resuelve el problema es el
+ * selector; esto sólo evita la mala experiencia de la primera vez.
+ */
+const CAMARA_SOSPECHOSA=/phone|tel[eé]fono|telefono|virtual|obs|droidcam|iriun|epoccam/i;
+
+function elegirCamaraPorDefecto(lista){
+  if(!lista.length) return null;
+  const buenas=lista.filter(d=>!CAMARA_SOSPECHOSA.test(d.label||''));
+  return (buenas.length ? buenas[0] : lista[0]).deviceId || null;
+}
+
+async function enumerarCamaras(){
+  try{
+    const todos=await navigator.mediaDevices.enumerateDevices();
+    camDispositivos=todos.filter(d=>d.kind==='videoinput');
+  }catch(e){
+    camDispositivos=[];
+    console.warn('No se pudieron enumerar las cámaras:',e);
+  }
+  return camDispositivos;
+}
+
+// El mismo stream para los cuatro sitios donde se ve o se analiza el vídeo.
+function repartirStream(s){
+  if(videoElement && videoElement.srcObject!==s){
+    videoElement.srcObject=s;
+    videoElement.play().catch(()=>{});
+  }
+  if(cameraFeed && cameraFeed.srcObject!==s){
+    cameraFeed.srcObject=s;
+    cameraFeed.play().catch(()=>{});
+  }
+  if(bgVideoEl && bgVideoEl.srcObject!==s){
+    bgVideoEl.srcObject=s;
+    bgVideoEl.play().catch(()=>{});
+  }
+  if(typeof repartirStreamP5==='function') repartirStreamP5(s);
+  if(cameraPreview) cameraPreview.classList.remove('offline');
+}
+
+function soltarStream(s){
+  if(!s) return;
+  try{ s.getTracks().forEach(t=>t.stop()); }catch(e){}
+}
+
+/*
+ * Mensajes de error distinguidos. Antes todo acababa en un
+ * `❌ ERROR CÁMARA` que no decía nada, y el caso más probable —otra
+ * aplicación tiene la cámara cogida— era indistinguible de no tener cámara.
+ */
+function explicarErrorCamara(e){
+  const nombre=(e && e.name) || 'Error';
+  const enElectron=/Electron/i.test(navigator.userAgent);
+  switch(nombre){
+    case 'NotAllowedError':
+    case 'SecurityError':
+      return {
+        badge:'❌ CÁMARA DENEGADA',
+        html:'<b>Permiso denegado.</b> Hay que autorizar la cámara para esta '
+          + 'aplicación.' + (enElectron
+            ? ' En Windows, además: <b>Configuración → Privacidad y seguridad → '
+              + 'Cámara → Permitir que las aplicaciones de escritorio accedan a '
+              + 'la cámara</b>. Ese permiso es del sistema y la aplicación no lo '
+              + 'puede conceder por su cuenta.'
+            : ' Búscalo en el icono de la barra de direcciones.')
+      };
+    case 'NotFoundError':
+    case 'DevicesNotFoundError':
+      return {badge:'❌ SIN CÁMARA',
+        html:'<b>No hay ninguna cámara conectada.</b> Conecta una y recarga.'};
+    case 'NotReadableError':
+    case 'TrackStartError':
+      return {badge:'❌ CÁMARA OCUPADA',
+        html:'<b>La cámara está en uso.</b> Otra aplicación la tiene cogida '
+          + '(Teams, Zoom, la app de Cámara de Windows…) o el controlador la '
+          + 'rechazó. Ciérrala y recarga.'};
+    case 'OverconstrainedError':
+      return {badge:'❌ CÁMARA NO DISPONIBLE',
+        html:'<b>La cámara elegida ya no está.</b> Se vuelve a intentar con la '
+          + 'que haya.'};
+    default:
+      return {badge:'❌ ERROR CÁMARA',
+        html:'<b>No se pudo abrir la cámara.</b> ' + nombre + '.'};
+  }
+}
+
+function mostrarAvisoCamara(html){
+  const caja=document.getElementById('aviso-camara');
+  if(!caja) return;
+  // La marca en el body es lo que aparta el preview y el recordatorio de
+  // gestos: sin cámara ninguno de los dos sirve, y el aviso necesita el sitio.
+  document.body.classList.toggle('camara-en-error', !!html);
+  if(!html){ caja.hidden=true; caja.innerHTML=''; return; }
+  caja.innerHTML=html;
+  caja.hidden=false;
+}
+
+/*
+ * Pide el stream. Es el ÚNICO sitio del programa que llama a getUserMedia:
+ * si aparece otro, vuelven los dos fallos de arriba.
+ */
+async function pedirCamara(deviceId){
+  const video={width:perf.camara.ancho, height:perf.camara.alto};
+  // `exact` a propósito: sin él el navegador puede ignorar la preferencia y
+  // devolver otra cámara, que es justo lo que se quiere evitar.
+  if(deviceId) video.deviceId={exact:deviceId};
+  camPeticiones++;
+  const s=await navigator.mediaDevices.getUserMedia({video, audio:false});
+  // El anterior se suelta DESPUÉS de tener el nuevo: si se soltara antes y el
+  // nuevo fallara, la app se quedaría sin imagen por intentar cambiar.
+  if(camStream && camStream!==s) soltarStream(camStream);
+  camStream=s;
+  const pista=s.getVideoTracks()[0];
+  camActual=(pista && pista.getSettings && pista.getSettings().deviceId) || deviceId || null;
+  repartirStream(s);
+  mostrarAvisoCamara(null);
+  return s;
+}
+
+function pintarSelectorCamara(){
+  const sel=document.getElementById('selector-camara');
+  if(!sel) return;
+  // Con una sola cámara no se enseña nada.
+  if(camDispositivos.length<2){ sel.hidden=true; sel.innerHTML=''; return; }
+  sel.innerHTML='';
+  camDispositivos.forEach((d,i)=>{
+    const o=document.createElement('option');
+    o.value=d.deviceId;
+    // Sin permiso los `label` vienen vacíos; para entonces ya se concedió,
+    // pero si aún no, al menos se numeran.
+    o.textContent=d.label || ('Cámara ' + (i+1));
+    if(d.deviceId===camActual) o.selected=true;
+    sel.appendChild(o);
+  });
+  sel.hidden=false;
+}
+
+async function cambiarCamara(deviceId){
+  try{
+    await pedirCamara(deviceId);
+    localStorage.setItem(CAMARA_KEY, deviceId);
+    await enumerarCamaras();
+    pintarSelectorCamara();
+  }catch(e){
+    const info=explicarErrorCamara(e);
+    setBadge(info.badge,'');
+    mostrarAvisoCamara(info.html);
+    console.warn('No se pudo cambiar de cámara:',e);
+  }
+}
+
+/*
+ * Arranque. El orden importa y es el que obliga la API:
+ *
+ *   1. getUserMedia genérico → concede el permiso.
+ *   2. enumerateDevices() → sólo ahora los `label` vienen con nombre; antes
+ *      del permiso llegan vacíos y la heurística no tendría nada que mirar.
+ *   3. Si hay preferencia guardada o la heurística elige otra, se vuelve a
+ *      pedir con `deviceId`.
+ */
+async function iniciarCamara(){
+  const guardado=localStorage.getItem(CAMARA_KEY);
+  try{
+    await pedirCamara(guardado || null);
+  }catch(e){
+    if(guardado && (e.name==='OverconstrainedError' || e.name==='NotFoundError')){
+      // La cámara guardada ya no existe: se desconectó el teléfono. Se borra
+      // la preferencia y se reintenta, en vez de dejar la app muerta por
+      // culpa de una elección vieja.
+      console.warn('La cámara guardada ya no está; se olvida y se reintenta.');
+      localStorage.removeItem(CAMARA_KEY);
+      try{
+        await pedirCamara(null);
+      }catch(e2){
+        const info=explicarErrorCamara(e2);
+        setBadge(info.badge,'');
+        mostrarAvisoCamara(info.html);
+        if(cameraPreview) cameraPreview.classList.add('offline');
+        return false;
+      }
+    }else{
+      const info=explicarErrorCamara(e);
+      setBadge(info.badge,'');
+      mostrarAvisoCamara(info.html);
+      if(cameraPreview) cameraPreview.classList.add('offline');
+      return false;
+    }
+  }
+
+  await enumerarCamaras();
+
+  // Sin preferencia y con varias cámaras, la heurística decide.
+  if(!localStorage.getItem(CAMARA_KEY) && camDispositivos.length>1){
+    const preferida=elegirCamaraPorDefecto(camDispositivos);
+    if(preferida && preferida!==camActual){
+      try{ await pedirCamara(preferida); }
+      catch(e){ console.warn('No se pudo usar la cámara preferida:',e); }
+    }
+  }
+
+  pintarSelectorCamara();
+
+  const sel=document.getElementById('selector-camara');
+  if(sel && !sel.dataset.enganchado){
+    sel.dataset.enganchado='1';
+    sel.addEventListener('change',()=>cambiarCamara(sel.value));
+  }
+
+  // Cambio de dispositivo en caliente: se enchufa o se va una cámara.
+  if(navigator.mediaDevices && navigator.mediaDevices.addEventListener){
+    navigator.mediaDevices.addEventListener('devicechange', async () => {
+      const antes=camActual;
+      await enumerarCamaras();
+      pintarSelectorCamara();
+      const sigue=camDispositivos.some(d=>d.deviceId===antes);
+      if(!sigue && antes){
+        // Si desaparece la que se estaba usando, la imagen se queda congelada
+        // sin decir nada. Se avisa y se intenta con otra.
+        mostrarAvisoCamara('<b>Se desconectó la cámara en uso.</b> '
+          + 'Se intenta con otra.');
+        localStorage.removeItem(CAMARA_KEY);
+        try{ await pedirCamara(null); pintarSelectorCamara(); }
+        catch(e){
+          const info=explicarErrorCamara(e);
+          setBadge(info.badge,'');
+          mostrarAvisoCamara(info.html);
+        }
+      }
+    });
+  }
+  return true;
+}
+
+/*
+ * Bucle de manos, en sustitución del helper `Camera` de camera_utils.
+ *
+ * Hace lo mismo que hacía aquél —un requestAnimationFrame que manda el
+ * fotograma al modelo— con dos diferencias: usa el stream que ya está abierto
+ * en vez de pedir uno propio, y respeta la pausa en vertical.
+ *
+ * El `await` antes de encadenar el siguiente frame no es decorativo: sin él
+ * se encolarían envíos más rápido de lo que el modelo los procesa y la
+ * latencia crecería sin parar.
+ */
+let camUltTiempo=-1;
+function arrancarBucleManos(){
+  if(camBucle) return;
+  camBucle=true;
+  const paso=async()=>{
+    if(!camBucle) return;
+    /*
+     * Sólo se envía cuando el vídeo ha avanzado de fotograma.
+     *
+     * `requestAnimationFrame` corre a la frecuencia de la PANTALLA (60 Hz) y
+     * la cámara entrega a 30. Sin esta comprobación se le manda al modelo de
+     * manos el mismo fotograma dos veces: el doble de trabajo para el mismo
+     * resultado, y se nota. Medido: 45,2 FPS de media y muy irregular sin la
+     * guarda, frente a 47,7 estables con ella.
+     *
+     * Es lo mismo que hacía el helper `Camera` de camera_utils, que comparaba
+     * `video.currentTime` con el del envío anterior. Se replica aquí porque
+     * era la parte que sí valía la pena de aquella dependencia.
+     */
+    if(!appPausada && mpHands && videoElement && videoElement.readyState>=2
+       && !videoElement.paused && videoElement.currentTime!==camUltTiempo){
+      camUltTiempo=videoElement.currentTime;
+      try{ await mpHands.send({image:videoElement}); }
+      catch(e){ /* un fotograma perdido no justifica parar el bucle */ }
+    }
+    requestAnimationFrame(paso);
+  };
+  requestAnimationFrame(paso);
+}
+
+/*
+ * MediaPipe necesita que el vídeo tenga dimensiones antes del primer `send`;
+ * con readyState 0 el envío falla en silencio y no llega ni un landmark.
+ */
+function arrancarManosCuandoHayaVideo(){
+  if(!videoElement) return;
+  if(videoElement.readyState>=2){ arrancarBucleManos(); return; }
+  videoElement.addEventListener('loadedmetadata', arrancarBucleManos, {once:true});
+}
 
 // Escritura del badge. Con badgeOnChange se evita tocar el DOM cuando el texto
 // no ha cambiado; por defecto se comporta igual que antes para que el A/B sea justo.
@@ -1257,18 +1913,19 @@ const CONNECTIONS=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],
   [0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],
   [0,17],[17,18],[18,19],[19,20],[5,9],[9,13],[13,17],[0,5]];
 
+/*
+ * Prepara el modelo de manos y el <video> que lo alimenta. Ya NO abre la
+ * cámara: el stream lo pide iniciarCamara() una sola vez y se lo reparte.
+ */
 function initMediaPipe(){
   videoElement=document.createElement('video');
-  videoElement.setAttribute('playsinline','');videoElement.style.display='none';
+  videoElement.setAttribute('playsinline','');
+  videoElement.muted=true; videoElement.autoplay=true;
+  videoElement.style.display='none';
   document.body.appendChild(videoElement);
   mpHands=new Hands({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`});
   mpHands.setOptions({maxNumHands:1,modelComplexity:perf.complejidad,minDetectionConfidence:0.75,minTrackingConfidence:0.6});
   mpHands.onResults(r=>{handsData=r.multiHandLandmarks||[];});
-  new Camera(videoElement,{
-    onFrame:async()=>{if(mpHands) await mpHands.send({image:videoElement});},
-    // Resolución de captura: ver el comentario de `perf` más abajo.
-    width:perf.camara.ancho,height:perf.camara.alto
-  }).start().catch(()=>{stateBadge.textContent='❌ ERROR CÁMARA';});
 }
 
 function lmDist(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
@@ -1776,13 +2433,47 @@ function blobToDataURL(blob){
 async function fetchPC(n){
   try{
     const r=await fetch(`https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/${encodeURIComponent(n)}/property/MolecularFormula,MolecularWeight,IUPACName,CanonicalSMILES/JSON`);
+    redOk();                       // hubo respuesta: hay internet
     if(!r.ok) return null;
     return (await r.json()).PropertyTable?.Properties?.[0]||null;
-  }catch{return null;}
+  }catch(e){redFallo(e);return null;}
 }
 
+/*
+ * ── Un único sitio que dice si hay red ──────────────────────────────
+ *
+ * `navigator.onLine` no dice si hay internet: dice si hay una interfaz de
+ * red. Un portátil conectado a un router sin salida contesta `true`. Por eso
+ * el valor inicial sale de ahí, pero las llamadas reales a PubChem lo
+ * corrigen: la única prueba de que hay internet es haber hablado con alguien.
+ *
+ * La distinción importante: `fetch` sólo LANZA cuando no hubo respuesta —sin
+ * red, DNS caído, CORS—. Un 404 es una respuesta perfectamente válida y
+ * significa que sí hay internet, sólo que esa molécula no está. Confundir las
+ * dos cosas apagaría el visor 3D por una molécula rara.
+ */
+function marcarRed(hayRed){
+  const v = hayRed ? 'si' : 'no';
+  if(document.body.dataset.red !== v) document.body.dataset.red = v;
+}
+// Un fallo de `fetch` es la señal de que no hay salida; una respuesta, aunque
+// sea un 404, es la señal de que sí.
+function redFallo(e){ if(e instanceof TypeError) marcarRed(false); }
+function redOk(){ marcarRed(true); }
+
+marcarRed(navigator.onLine !== false);
+window.addEventListener('online',  () => marcarRed(true));
+window.addEventListener('offline', () => marcarRed(false));
+
 async function fetch3DSDF(n){
-  const r=await fetch(`https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/${encodeURIComponent(n)}/SDF?record_type=3d`);
+  let r;
+  try{
+    r = await fetch(`https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/${encodeURIComponent(n)}/SDF?record_type=3d`);
+  }catch(e){
+    redFallo(e);
+    throw new Error('sin-red');
+  }
+  redOk();
   if(!r.ok) throw new Error('Sin 3D');
   return r.text();
 }
@@ -1791,7 +2482,10 @@ const pcImg =(n)=>`https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/${enc
 const pcPage=(n)=>`https://pubchem.ncbi.nlm.nih.gov/compound/${encodeURIComponent(n)}`;
 
 async function fetchImg2DBase64(n){
-  const r = await fetch(pcImg(n));
+  let r;
+  try{ r = await fetch(pcImg(n)); }
+  catch(e){ redFallo(e); throw new Error('sin-red'); }
+  redOk();
   if(!r.ok) throw new Error('Sin imagen 2D');
   return await blobToDataURL(await r.blob());
 }
@@ -2301,7 +2995,10 @@ async function cargar3D(nombre_en, sdfCache=null){
     status.style.display='none';
 
   }catch(e){
-    status.textContent='⚠ Estructura 3D no disponible para esta molécula en PubChem.';
+    // Sin red el motivo no es la molécula, y decir lo contrario despista.
+    status.textContent = (e && e.message === 'sin-red')
+      ? '⚠ Sin conexión: la estructura 3D se descarga de PubChem.'
+      : '⚠ Estructura 3D no disponible para esta molécula en PubChem.';
     console.log('3D error:',e);
   }
 }
@@ -2773,6 +3470,12 @@ document.getElementById('btn-simular').addEventListener('click', simularReaccion
 
 cargarCatalogoReacciones();
 
+/*
+ * Asa de la instancia de p5 y bandera de pausa. Las usa pausarApp() más abajo,
+ * cuando el teléfono se pone en vertical y sale el cartel de girar.
+ */
+let p5app=null, appPausada=false;
+
 new p5(p=>{
   const CORE='rgba(255,255,255,0.92)',SOFT='rgba(255,255,255,0.10)';
   const CH=[60,80,100],CHA=[160,185,210];
@@ -3086,30 +3789,39 @@ new p5(p=>{
   }
 
   p.setup=()=>{
+    p5app=p;
     p.createCanvas(p.windowWidth,p.windowHeight);
     dc=p.createGraphics(p.windowWidth,p.windowHeight);dc.clear();
     construirGrid();
-    navigator.mediaDevices.getUserMedia({video:{width:perf.camara.ancho,height:perf.camara.alto},audio:false})
-      .then(s=>{
-        camStream=s;               // lo reutiliza el modo perfilado para el fondo por CSS
+    /*
+     * p5 ya no pide la cámara por su cuenta. Expone cómo recibir el stream
+     * compartido —su <video> es de p5 y sólo se puede crear desde aquí— y
+     * deja que iniciarCamara() haga la única adquisición.
+     */
+    repartirStreamP5=(s)=>{
+      if(!vc){
         vc=p.createVideo('');
-        vc.elt.srcObject=s;vc.elt.setAttribute('playsinline','');vc.elt.play();vc.hide();
+        vc.elt.setAttribute('playsinline','');
+        vc.elt.muted=true;
+        vc.hide();
+      }
+      if(vc.elt.srcObject!==s){
+        vc.elt.srcObject=s;
+        vc.elt.play().catch(()=>{});
+      }
+    };
 
-        // El mismo stream del fondo alimenta el recuadro 160x120 de la esquina inferior izquierda.
-        if(cameraFeed){
-          cameraFeed.srcObject=s;
-          cameraFeed.play().catch(()=>{});
-        }
-        if(cameraPreview) cameraPreview.classList.remove('offline');
-      })
-      .catch(()=>{if(cameraPreview) cameraPreview.classList.add('offline');});
     initMediaPipe();
+    iniciarCamara().then(ok=>{
+      if(ok) arrancarManosCuandoHayaVideo();
+      else if(cameraPreview) cameraPreview.classList.add('offline');
+    });
   };
 
   p.windowResized=()=>{p.resizeCanvas(p.windowWidth,p.windowHeight);const o=dc;dc=p.createGraphics(p.windowWidth,p.windowHeight);dc.clear();construirGrid();marcarCambio();redrawAll();actualizarFeedbackEnVivo(true);if(o)o.remove();};
 
   p.draw=()=>{
-    const _t0=PERF?performance.now():0;
+    const _t0=(PERF||perfLabActivo)?performance.now():0;
     // Con videoCSS el vídeo lo pinta el compositor detrás del canvas, así que el
     // canvas debe quedar transparente. Sin él, comportamiento actual.
     if(perf.videoCSS) p.clear();
@@ -3117,10 +3829,10 @@ new p5(p=>{
       p.background(8,8,14);
       if(vc&&vc.elt.readyState>=2){p.push();p.translate(p.width,0);p.scale(-1,1);p.tint(255,75);p.image(vc,0,0,p.width,p.height);p.pop();p.fill(8,8,14,165);p.noStroke();p.rect(0,0,p.width,p.height);}
     }
-    const _t1=PERF?performance.now():0;
+    const _t1=(PERF||perfLabActivo)?performance.now():0;
     if(gridG) p.image(gridG,0,0);   // rejilla ya dibujada (ver construirGrid)
     p.image(dc,0,0);
-    const _t2=PERF?performance.now():0;
+    const _t2=(PERF||perfLabActivo)?performance.now():0;
     if(handsData.length>0){
       const lm=handsData[0],pi=isPinching(lm),po=isPalmOpen(lm);
       // Las dos opciones siguen disponibles: isPinching(lm) e isOnlyIndexExtended(lm).
@@ -3163,9 +3875,53 @@ new p5(p=>{
 //  las optimizaciones candidatas en caliente, sin recompilar.
 // ════════════════════════════════════════════════════
 
+/*
+ * Medición programática, para comparar A/B sin mirar el recuadro de ?perf=1.
+ *
+ *   perfLab(true)   reinicia los contadores y empieza a medir
+ *   perfLab()       devuelve la media desde el último reinicio
+ *
+ * Los tiempos los acumula perfRegistrar() en cada frame de p.draw(), que
+ * corre siempre —no sólo con ?perf=1— porque la calidad adaptativa necesita
+ * los FPS. Así que esto funciona en la app normal.
+ */
+function perfLab(reiniciar){
+  if(reiniciar){
+    // Los relojes por frame están apagados fuera de ?perf=1 para no pagarlos
+    // en cada fotograma. Aquí se encienden mientras dure la medición.
+    perfLabActivo=true;
+    perfLabT={video:0,capas:0,mano:0,total:0};
+    perfLabN=0; perfLabT0=performance.now();
+    return 'midiendo';
+  }
+  const n=perfLabN||1;
+  const seg=(performance.now()-perfLabT0)/1000;
+  const r={
+    segundos:Number(seg.toFixed(1)),
+    frames:perfLabN,
+    fps:Number((perfLabN/Math.max(seg,0.001)).toFixed(2)),
+    draw:Number((perfLabT.total/n).toFixed(3)),
+    video:Number((perfLabT.video/n).toFixed(3)),
+    capas:Number((perfLabT.capas/n).toFixed(3)),
+    mano:Number((perfLabT.mano/n).toFixed(3)),
+    camara:perf.camara.ancho+'x'+perf.camara.alto,
+    complejidad:perf.complejidad,
+    peticionesCamara:camPeticiones
+  };
+  perfLabActivo=false;
+  return r;
+}
+
 function perfRegistrar(t0,t1,t2,t3){
   perf.t.video+=t1-t0; perf.t.capas+=t2-t1; perf.t.mano+=t3-t2; perf.t.total+=t3-t0;
   perf.n++; perf.frames++;
+  // Cuenta aparte para perfLab(): la de arriba se reinicia cada 500 ms para
+  // repintar el recuadro y no sirve para una media de varios segundos.
+  if(perfLabActivo){
+    perfLabT.video+=t1-t0; perfLabT.capas+=t2-t1;
+    perfLabT.mano+=t3-t2;  perfLabT.total+=t3-t0;
+    perfLabN++;
+  }
   const ahora=performance.now();
   if(!perf.tUlt){perf.tUlt=ahora;return;}
   if(ahora-perf.tUlt<500) return;
@@ -3278,6 +4034,9 @@ function aplicarModo(modo){
   if(ultimoGNN) mostrarResultadosGNN(ultimoGNN.props, ultimoGNN.metricas);
   if(ultimaFichaMol) pintarFichaTecnica(ultimaFichaMol);
   if(ultimaReaccion) pintarPosibilidadesReaccion(ultimaReaccion);
+  // El texto del botón de modo cambia de ancho y con él el alto de #ui en
+  // pantalla estrecha: se remide después de escribirlo, no antes.
+  if(typeof medirZonas === 'function') medirZonas();
 }
 
 function alternarModo(){
@@ -3376,7 +4135,124 @@ function medirBarraEstado(){
   const alto = Math.ceil(barra.getBoundingClientRect().height) || 30;
   document.documentElement.style.setProperty('--altura-barra', alto + 'px');
 }
-window.addEventListener('resize', medirBarraEstado);
+
+/*
+ * ── Alto real de cada zona de la interfaz ───────────────────────────
+ *
+ * En pantalla estrecha los elementos de arriba se apilan y los de abajo se
+ * reparten en dos carriles. Para colocarlos hace falta saber cuánto ocupa
+ * cada uno, y eso no se puede escribir a mano: el título envuelve a dos
+ * líneas, la fila de acciones envuelve o no según el ancho, y el botón de
+ * modo cambia de texto. Un número fijo se queda corto justo en el caso que
+ * se quería arreglar.
+ *
+ * Se publica como variables CSS y el CSS de más abajo las suma. El orden de
+ * medición importa: la barra del modo profesional empuja a #ui, así que se
+ * mide antes.
+ *
+ * Ninguna de estas variables cambia el tamaño del elemento que se mide
+ * (--alto-ui coloca a otros, no a #ui), de modo que no hay realimentación.
+ */
+function medirZonas(){
+  medirBarraEstado();
+  const raiz = document.documentElement;
+  const alto = id => {
+    const e = document.getElementById(id);
+    if(!e) return 0;
+    const r = e.getBoundingClientRect();
+    return r.height ? Math.ceil(r.height) : 0;
+  };
+  raiz.style.setProperty('--alto-ui',          alto('ui') + 'px');
+  raiz.style.setProperty('--alto-smiles',      alto('smiles-panel') + 'px');
+  raiz.style.setProperty('--alto-lanzadores',  alto('lanzadores') + 'px');
+  raiz.style.setProperty('--alto-botones',     alto('buttons') + 'px');
+}
+window.addEventListener('resize', medirZonas);
+// `orientationchange` llega antes de que el navegador reajuste el viewport en
+// algunos móviles, así que se mide en el fotograma siguiente.
+window.addEventListener('orientationchange', () => requestAnimationFrame(medirZonas));
+
+/*
+ * Y, sobre todo, un observador de tamaño. `resize` avisa de que cambió la
+ * VENTANA; aquí lo que importa es que cambió el ALTO DE UN BLOQUE, que no es
+ * lo mismo: la fila de acciones pasa de una a dos líneas, el título envuelve,
+ * el botón de modo cambia de texto, o llega una tipografía y todo crece unos
+ * píxeles. Con `resize` solo, esos casos dejaban las variables desfasadas y
+ * los dos carriles de abajo se solapaban 5 px.
+ *
+ * No hay realimentación: ninguna de estas variables afecta al tamaño del
+ * elemento del que sale (--alto-ui coloca a otros, nunca a #ui), así que el
+ * observador no se dispara a sí mismo.
+ */
+if(typeof ResizeObserver === 'function'){
+  const ro = new ResizeObserver(() => medirZonas());
+  ['ui','smiles-panel','lanzadores','buttons'].forEach(id => {
+    const e = document.getElementById(id);
+    if(e) ro.observe(e);
+  });
+}
+medirZonas();
+document.addEventListener('DOMContentLoaded', medirZonas);
+window.addEventListener('load', medirZonas);
+// Las tipografías del sistema y los emojis llegan después del primer
+// cálculo y cambian el alto del título: medido antes de que carguen, #ui
+// salía 3 px más bajo de lo que acaba midiendo.
+if(document.fonts && document.fonts.ready) document.fonts.ready.then(medirZonas);
+
+/*
+ * ── Pausa al ponerse en vertical ────────────────────────────────────
+ *
+ * El CSS oculta la app con `display:none`, pero eso no para nada: p5 sigue
+ * llamando a draw() y MediaPipe sigue pasándole fotogramas al modelo de manos.
+ * En un teléfono eso es la batería yéndose por un lienzo que nadie ve.
+ *
+ * Las pistas de vídeo se desactivan con `enabled = false` y NO con `stop()`:
+ * parar una pista libera el dispositivo, y al volver a horizontal hay que
+ * volver a pedir permiso de cámara —con diálogo, en algunos navegadores—.
+ * Desactivada, la pista sigue siendo nuestra y vuelve sola.
+ */
+const CONSULTA_VERTICAL = window.matchMedia
+  ? window.matchMedia('(orientation: portrait) and (max-width: 600px)')
+  : null;
+
+// Sólo hay un MediaStream vivo —lo garantiza pedirCamara(), que es el único
+// sitio que llama a getUserMedia—, así que basta con sus pistas. Antes había
+// que rastrear también el srcObject de videoElement porque el helper Camera
+// abría una captura propia.
+function pistasCamara(){
+  if(!camStream) return [];
+  try{ return camStream.getVideoTracks(); }catch(e){ return []; }
+}
+
+function pausarApp(pausar){
+  if(appPausada === pausar) return;
+  appPausada = pausar;
+  if(p5app){
+    // noLoop() detiene draw(); loop() lo reanuda desde el siguiente fotograma.
+    if(pausar) p5app.noLoop(); else p5app.loop();
+  }
+  pistasCamara().forEach(t => { t.enabled = !pausar; });
+  if(!pausar) medirZonas();   // al volver, las alturas se remiden
+}
+
+if(CONSULTA_VERTICAL){
+  const aplicar = () => pausarApp(CONSULTA_VERTICAL.matches);
+  // addEventListener('change') es lo moderno; addListener es para Safari viejo,
+  // que es exactamente el navegador donde esto importa.
+  if(CONSULTA_VERTICAL.addEventListener) CONSULTA_VERTICAL.addEventListener('change', aplicar);
+  else if(CONSULTA_VERTICAL.addListener) CONSULTA_VERTICAL.addListener(aplicar);
+  /*
+   * Y por si el `change` de la media query no llega. Los tres avisos —el de
+   * la consulta, `resize` y `orientationchange`— salen del mismo giro del
+   * aparato, así que preguntar por `matches` en los tres es gratis: la
+   * función sale sola si el estado no ha cambiado.
+   */
+  window.addEventListener('resize', aplicar);
+  window.addEventListener('orientationchange', () => requestAnimationFrame(aplicar));
+  // Y una vez al arrancar, por si la página se abre ya en vertical. Se retrasa
+  // hasta que p5 y la cámara existan: antes no hay nada que pausar.
+  window.addEventListener('load', () => setTimeout(aplicar, 1500));
+}
 
 // ── Ficha técnica ───────────────────────────────────────
 // SMILES canónico, peso, átomos, enlaces y anillos: todo esto se calculaba en
@@ -4049,8 +4925,9 @@ async function fetchSDF3d(smiles){
   for(const url of urls){
     try{
       const r = await fetch(url);
+      redOk();
       if(r.ok){ const t = await r.text(); if(t && t.trim().length > 10) return t; }
-    }catch(e){}
+    }catch(e){ redFallo(e); }
   }
   return null;
 }
