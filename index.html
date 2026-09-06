@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Proyecto Final— Reconocimiento Molecular</title>
+  <title>Proyecto Final — Reconocimiento Molecular</title>
   <link rel="icon" href="favicon.ico"/>
   <script src="https://3Dmol.csb.pitt.edu/build/3Dmol-min.js"></script>
 
@@ -496,7 +496,7 @@
       transition:background-color 240ms ease,color 240ms ease,
                  border-color 240ms ease;}
     /* ── Modo profesional ─────────────────────────────────────────────
-       Todo lo marcado .solo-pro se oculta en . El  es el
+       Todo lo marcado .solo-pro se oculta en modo niño. El modo niño es el
        de por defecto y no gana ni pierde nada respecto a lo que había. */
     body[data-modo="nino"] .solo-pro{display:none !important;}
     /* El conmutador vive dentro de #ui, arriba a la izquierda, como primer
@@ -703,10 +703,10 @@
   <!-- Grupo izquierdo: el conmutador de modo va primero, arriba a la
        izquierda. Se agrupa con el título en un flex en vez de posicionarlo
        de forma absoluta, para que el ancho del botón —que cambia entre
-       "" y "MODO PROFESIONAL"— no descoloque nada. -->
+       "MODO NIÑO" y "MODO PROFESIONAL"— no descoloque nada. -->
   <div id="ui-izquierda">
     <button id="btn-modo" type="button"
-            title="Cambia entre la vista sencilla y la vista con todos los datos"> MODO NIÑO</button>
+            title="Cambia entre la vista sencilla y la vista con todos los datos">MODO NIÑO</button>
     <div id="branding">
       <div id="title">Proyecto Quimica</div>
       <div id="subtitle">Analisis molecular SFS</div>
@@ -1036,7 +1036,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.3/p5.min.js"></script>
-<script src="molecules_250.js?v=3fb44a8379"></script>
+<script src="molecules_250.js?v=6061dd6087"></script>
 <script src="elementos_quimicos.js?v=ee39e256ab"></script>
 <script src="pinchdraw-trazos.js?v=d2af85020e"></script>
 
@@ -3270,7 +3270,7 @@ function aplicarModo(modo){
   pintarBarraEstado();
   const btn = document.getElementById('btn-modo');
   if(btn){
-    btn.textContent = modo === 'pro' ? '🔬 MODO PROFESIONAL' : ' MODO NIÑO';
+    btn.textContent = modo === 'pro' ? '🔬 MODO PROFESIONAL' : 'MODO NIÑO';
     btn.setAttribute('aria-pressed', modo === 'pro' ? 'true' : 'false');
   }
   // Lo ya pintado se vuelve a pintar: si se cambia de modo con una ficha
