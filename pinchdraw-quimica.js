@@ -58,6 +58,19 @@
   const cacheGrafo = new Map();  // grafos moleculares ya calculados
 
   let rutaModelos = 'modelos/';
+  /*
+   * Sufijo de cache de los modelos.
+   *
+   * Los .json de los modelos se pedian SIN version, asi que un navegador que
+   * ya habia visitado la pagina seguia usando el modelo viejo: se reentrenaba,
+   * se reexportaba, y al usuario no le llegaba nada. Se descubrio al anadir el
+   * rango de aplicabilidad, que no aparecia en dos de los tres modelos porque
+   * el navegador servia el config anterior de su cache.
+   *
+   * Lo rellena refrescar_versiones.py con el hash de los tres archivos, igual
+   * que hace con los <script src>.
+   */
+  let versionModelos = '';
   let rutaReacciones = 'reacciones.json';
   let progreso = function () {};
 
@@ -268,6 +281,14 @@
       pesoMolecular: Math.round((desc.exactmw || 0) * 1000) / 1000,
       pesoPromedio: Math.round((desc.amw || 0) * 1000) / 1000,
       numAtomos: N,
+      // Símbolos de los átomos PESADOS, para comparar contra los elementos que
+      // había en el entrenamiento de cada modelo. No se saca de la fórmula
+      // porque ésa lleva los hidrógenos implícitos, que el grafo no tiene.
+      elementos: (function(){
+        const vistos = {};
+        for (let i = 0; i < N; i++) vistos[SIMBOLO_POR_Z[z[i]] || 'X'] = 1;
+        return Object.keys(vistos).sort();
+      })(),
       numEnlaces: enlaces.length,
       numAnillos: (ext.atomRings || []).length,
       tieneAromaticos: aromAtomos.size > 0,
@@ -662,6 +683,106 @@
     return NIVELES_DISCRIMINACION[NIVELES_DISCRIMINACION.length - 1];
   }
 
+  /*
+   * ── ¿Está esta molécula fuera de lo que el modelo vio? ──────────────
+   *
+   * Un modelo entrenado con moléculas pequeñas responde igual de rápido a un
+   * heptapéptido de 995 g/mol, y el número sale con el mismo aspecto que los
+   * demás. La microcistina-LR fue el caso que lo puso encima de la mesa.
+   *
+   * exportar_modelos.py guarda en el config de cada modelo los percentiles 1
+   * y 99 de peso molecular y número de átomos sobre SU conjunto de
+   * entrenamiento, más la lista de elementos que allí aparecían. Aquí sólo se
+   * compara. Nada de umbrales escritos a mano: si se reentrena con otros
+   * datos, el rango se recalcula al reexportar, igual que el ROC-AUC.
+   *
+   * EL AVISO SÓLO SE DISPARA EN UNA DIRECCIÓN. Se dice «esto se parece poco a
+   * lo que el modelo estudió»; nunca lo contrario. Quedar dentro del rango no
+   * significa que la predicción sea buena, y afirmarlo sería exactamente el
+   * error de leer «0 de 12 ensayos» como certificado de inocuidad. Por eso
+   * esta función devuelve null cuando todo encaja: no hay nada que decir.
+   *
+   * Un elemento que no estaba en el entrenamiento pesa más que un peso
+   * molecular algo alto: si el featurizador nunca vio boro, lo que produzca
+   * para el boro es invención. Por eso va marcado aparte como 'fuerte'.
+   */
+  function fueraDeDominio(grafo, cfg) {
+    const d = cfg && cfg.dominio;
+    if (!d || !grafo) return null;
+
+    const motivos = [];
+    let fuerte = false;
+
+    const elsEntren = d.elementos || [];
+    if (elsEntren.length) {
+      const nuevos = (grafo.elementos || []).filter(function (e) {
+        return elsEntren.indexOf(e) < 0;
+      });
+      if (nuevos.length) {
+        fuerte = true;
+        motivos.push({
+          clase: 'elemento',
+          elementos: nuevos,
+          texto: 'contiene ' + nuevos.join(', ')
+            + (nuevos.length === 1 ? ', que no aparecía' : ', que no aparecían')
+            + ' en ninguna de las moléculas con las que se entrenó'
+        });
+      }
+    }
+
+    /*
+     * Asimetrico a proposito: por arriba el p99, por abajo el minimo real.
+     *
+     * Por arriba la cola es larga y poco poblada (ESOL llega a 781 con un p99
+     * de 430), asi que el percentil protege de que un outlier ensanche el
+     * rango. Por abajo pasa lo contrario: las moleculas pequenas son
+     * abundantes, y cortar por el p1 marcaba como desconocidos al etanol, al
+     * metanol y al acetonitrilo, que ESTAN en el train de ESOL. Un aviso que
+     * miente se deja de leer, asi que por debajo solo se avisa de lo que de
+     * verdad nadie vio: por debajo del minimo del entrenamiento.
+     */
+    const pm = grafo.pesoPromedio;
+    const rangoPm = d.peso_molecular;
+    const pmBajo = (rangoPm && rangoPm.min !== undefined) ? rangoPm.min : (rangoPm || {}).p1;
+    if (rangoPm && isFinite(pm) && pm > 0) {
+      if (pm > rangoPm.p99) {
+        motivos.push({
+          clase: 'peso', valor: pm, limite: rangoPm.p99, lado: 'alto',
+          texto: 'pesa ' + Math.round(pm) + ' g/mol y el 99 % de las del '
+            + 'entrenamiento no pasaba de ' + Math.round(rangoPm.p99)
+        });
+      } else if (pmBajo !== undefined && pm < pmBajo) {
+        motivos.push({
+          clase: 'peso', valor: pm, limite: pmBajo, lado: 'bajo',
+          texto: 'pesa ' + Math.round(pm) + ' g/mol y la mas ligera del '
+            + 'entrenamiento pesaba ' + Math.round(pmBajo)
+        });
+      }
+    }
+
+    const na = grafo.numAtomos;
+    const rangoNa = d.atomos_pesados;
+    const naBajo = (rangoNa && rangoNa.min !== undefined) ? rangoNa.min : (rangoNa || {}).p1;
+    if (rangoNa && isFinite(na) && na > 0) {
+      if (na > rangoNa.p99) {
+        motivos.push({
+          clase: 'atomos', valor: na, limite: rangoNa.p99, lado: 'alto',
+          texto: 'tiene ' + na + ' átomos y el 99 % de las del entrenamiento '
+            + 'no pasaba de ' + rangoNa.p99
+        });
+      } else if (naBajo !== undefined && na < naBajo) {
+        motivos.push({
+          clase: 'atomos', valor: na, limite: naBajo, lado: 'bajo',
+          texto: 'tiene ' + na + ' átomos y la más pequeña del entrenamiento '
+            + 'tenía ' + naBajo
+        });
+      }
+    }
+
+    if (!motivos.length) return null;
+    return { fuerte: fuerte, motivos: motivos, n_entrenamiento: d.n_entrenamiento };
+  }
+
   function interpretarProbabilidad(p, rocAuc) {
     return nivelDiscriminacion(rocAuc).decidir(p);
   }
@@ -723,7 +844,11 @@
      */
     function conSplit(cfg) {
       const m = cfg.metricas || {};
-      return cfg.split ? Object.assign({}, m, { split: cfg.split }) : m;
+      const fuera = cfg.split ? Object.assign({}, m, { split: cfg.split }) : Object.assign({}, m);
+      // El rango de aplicabilidad viaja con la métrica porque es lo mismo:
+      // cuánto fiarse. No es un veredicto ni una descripción.
+      if (cfg.dominio) fuera.dominio = cfg.dominio;
+      return fuera;
     }
 
     // ── Solubilidad (regresión: hay que desnormalizar) ─────────────
@@ -738,6 +863,8 @@
         interpretacion: interpretarLogS(logS, (modelos.esol.config.metricas || {}).rmse),
         mensaje_nino: mensajeNinoLogS(logS)
       };
+      propiedades.solubilidad.fuera_de_dominio =
+        fueraDeDominio(grafo, modelos.esol.config);
       metricas.solubilidad = conSplit(modelos.esol.config);
     }
 
@@ -782,6 +909,8 @@
         umbral_positivo: UMBRAL_POSITIVO,
         n_sobre_umbral: probs.filter(function (p) { return p >= UMBRAL_POSITIVO; }).length
       };
+      propiedades.toxicidad.fuera_de_dominio =
+        fueraDeDominio(grafo, modelos.tox21.config);
       metricas.toxicidad = conSplit(modelos.tox21.config);
     }
 
@@ -793,6 +922,8 @@
         prediccion: interpretarProbabilidad(prob, (modelos.bbbp.config.metricas || {}).roc_auc),
         cruza_bbb: prob >= 0.5
       };
+      propiedades.bbbp.fuera_de_dominio =
+        fueraDeDominio(grafo, modelos.bbbp.config);
       metricas.bbbp = conSplit(modelos.bbbp.config);
     }
 
@@ -1053,6 +1184,7 @@
     // legítimo (significa "los archivos están junto al HTML, sin subcarpeta")
     // y con || se descartaría por ser falsy, volviendo al valor por defecto.
     if (opciones.rutaModelos !== undefined) rutaModelos = opciones.rutaModelos;
+    if (opciones.versionModelos !== undefined) versionModelos = opciones.versionModelos;
     if (opciones.rutaReacciones !== undefined) rutaReacciones = opciones.rutaReacciones;
     progreso = opciones.progreso || progreso;
 
@@ -1070,7 +1202,8 @@
 
       const nombres = ['esol', 'tox21', 'bbbp'];
       const cargas = nombres.map(function (n, i) {
-        return cargarJSON(rutaModelos + n + '.json').then(function (paquete) {
+        return cargarJSON(rutaModelos + n + '.json'
+          + (versionModelos ? '?v=' + versionModelos : '')).then(function (paquete) {
           modelos[n] = new Modelo(paquete);
           progreso('Modelo ' + n + ' listo', 0.45 + 0.15 * (i + 1));
         });
@@ -1219,6 +1352,7 @@
     // duplicaran los umbrales, acabarían discrepando.
     interpretarProbabilidad: interpretarProbabilidad,
     veredictoTieneDireccion: veredictoTieneDireccion,
+    fueraDeDominio: fueraDeDominio,
     nivelDiscriminacion: nivelDiscriminacion,
     interpretarLogS: interpretarLogS,
     Modelo: Modelo,

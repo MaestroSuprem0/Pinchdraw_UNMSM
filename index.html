@@ -17,7 +17,7 @@
        así la app no depende de que unpkg esté disponible, y el .wasm queda
        cacheado en el navegador tras la primera visita. -->
   <script src="RDKit_minimal.js"></script>
-  <script src="pinchdraw-quimica.js?v=7208769283"></script>
+  <script src="pinchdraw-quimica.js?v=29acd7f311"></script>
   <script>
     // Si el módulo de química no llegó a cargarse, se avisa en pantalla en
     // vez de dejar que la página reviente con un error críptico.
@@ -44,6 +44,10 @@
 
       PinchDrawQuimica.iniciar({
         rutaModelos: '',
+        // Lo reescribe refrescar_versiones.py con el hash de los tres
+        // .json de modelos. Sin esto, un reentrenamiento no le llega a
+        // quien ya visito la pagina: se queda con el modelo cacheado.
+        versionModelos: '9fd051cc48',
         progreso: function (mensaje, fraccion) {
           if (texto) texto.textContent = mensaje;
           if (barra) barra.style.width = Math.round(fraccion * 100) + '%';
@@ -1434,6 +1438,7 @@
           <span class="gnn-prop-interp" id="gnn-sol-interp">—</span>
           <span class="gnn-prop-interp" id="gnn-sol-mol">—</span>
           <div class="gnn-metrica" id="gnn-sol-metrica" style="display:none"></div>
+          <div class="gnn-salvedad" id="gnn-sol-dominio" style="display:none"></div>
           <!-- El límite legal va PEGADO al logS, no al final de la ficha: el
                modelo estima si la molécula viaja con el agua y la ley dice
                cuánta se permite en el agua. Juntas dicen algo; separadas son
@@ -1455,6 +1460,7 @@
                quien va a sacar la conclusión equivocada. -->
           <div class="gnn-salvedad" id="gnn-tox-cero" style="display:none"></div>
           <div class="gnn-metrica" id="gnn-tox-metrica" style="display:none"></div>
+          <div class="gnn-salvedad" id="gnn-tox-dominio" style="display:none"></div>
         <!-- Los 12 ensayos, que es lo que hace defendible no resumirlos en uno. -->
         <div id="tox-tabla-wrap" class="solo-pro" style="display:none">
           <div id="tox-tabla-cap"></div>
@@ -1479,6 +1485,7 @@
           <div class="gnn-track"><div class="gnn-bar" id="gnn-bbb-bar"></div></div>
           <span class="gnn-prop-interp" id="gnn-bbb-detail">—</span>
           <div class="gnn-metrica" id="gnn-bbb-metrica" style="display:none"></div>
+          <div class="gnn-salvedad" id="gnn-bbb-dominio" style="display:none"></div>
         </div>
         <div class="norma" id="norma-cosing" style="display:none"></div>
         <!-- Nota de limitación: permanente. Una herramienta que dice "no
@@ -1564,10 +1571,10 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.3/p5.min.js"></script>
-<script src="molecules_250.js?v=a4844a395b"></script>
+<script src="molecules_250.js?v=be9108ee10"></script>
 <!-- Límites legales y estatus regulatorio. Generado por
      herramientas/generar_normativa.js desde datos/*.json. -->
-<script src="normativa.js?v=04ec4e429a"></script>
+<script src="normativa.js?v=642dda9591"></script>
 <script src="elementos_quimicos.js?v=ee39e256ab"></script>
 <script src="pinchdraw-trazos.js?v=d2af85020e"></script>
 
@@ -3537,9 +3544,17 @@ function pintarNormaCosing(mol){
 function pintarAvisoIsomero(mol){
   const el = document.getElementById('gnn-isomero');
   if(!el) return 0;
-  const gemelas = (mol && mol.smiles)
+  /*
+   * El grupo lo decide grafo_id, que escribe herramientas/medir_indistinguibles.py
+   * featurizando las 256 con el mismo featurizador de 37 características que
+   * consume la GNN. Antes esto comparaba SMILES, que acertaba con el par
+   * endrin/dieldrina por casualidad —comparten SMILES plano— pero se habría
+   * perdido cualquier par escrito de otra forma. Ahora el criterio es el grafo
+   * de verdad, y el texto sale del grupo en vez de estar escrito para ese par.
+   */
+  const gemelas = (mol && mol.grafo_id)
     ? (window.PINCHDRAW_MOLECULES_250 || []).filter(
-        x => x.smiles === mol.smiles && String(x.cid) !== String(mol.cid))
+        x => x.grafo_id === mol.grafo_id && String(x.cid) !== String(mol.cid))
     : [];
   if(!gemelas.length){ el.style.display = 'none'; el.textContent = ''; el.title = ''; return 0; }
 
@@ -3567,6 +3582,52 @@ function pintarNormativa(mol){
   const b = pintarNormaCosing(mol);
   const c = pintarAvisoIsomero(mol);
   return a + b + c;
+}
+
+/*
+ * ── Aviso de dominio de aplicabilidad ────────────────────────────────
+ *
+ * Va en la casilla de FIABILIDAD, junto al ROC-AUC y al aviso de
+ * discriminación baja, porque es lo mismo que ellos: cuánto fiarse. No es un
+ * veredicto (eso lo dice la etiqueta) ni una descripción del resultado (eso lo
+ * dice la frase de debajo). La regla de FUGA ENTRE CASILLAS se aplica igual
+ * aquí, y por eso no se mete en ninguna de las otras dos.
+ *
+ * Visible en los dos modos: un niño que ve tres cifras de una molécula que el
+ * modelo nunca estudió merece saberlo tanto como un profesional.
+ *
+ * El texto dice lo que la comprobación ES —un parecido grueso de
+ * descriptores— y no lo que no es. «Se parece poco a lo que el modelo
+ * estudió» no es «este número está mal».
+ */
+function pintarDominio(idElemento, fuera){
+  const el = document.getElementById(idElemento);
+  if(!el) return 0;
+  if(!fuera || !fuera.motivos || !fuera.motivos.length){
+    el.style.display = 'none'; el.textContent = ''; el.title = '';
+    return 0;
+  }
+  const lista = fuera.motivos.map(m => m.texto);
+  const cabeza = fuera.fuerte
+    ? '⚠ Este modelo nunca vio un átomo así: '
+    : '⚠ Esta molécula se parece poco a las que este modelo estudió: ';
+  el.textContent = cabeza + lista.join('; ') + '.';
+  el.title = 'El modelo aprendió de '
+    + (fuera.n_entrenamiento ? fuera.n_entrenamiento + ' moléculas' : 'un conjunto de moléculas')
+    + ', y ésta queda fuera del rango que cubrían.\n\n'
+    + (fuera.fuerte
+        ? 'Cuando aparece un elemento químico que no estaba en el entrenamiento, lo '
+          + 'que el modelo produzca para esos átomos no procede de nada que haya '
+          + 'visto: se lo está inventando.\n\n'
+        : '')
+    + 'Es una comprobación gruesa de parecido —peso, número de átomos y qué '
+    + 'elementos hay—, no una medida del error. No dice que este número esté mal; '
+    + 'dice que el modelo está extrapolando.\n\n'
+    + 'Lo contrario NO vale: que una molécula caiga dentro del rango no significa '
+    + 'que la estimación sea buena. Por eso este aviso sólo aparece cuando algo se '
+    + 'sale, y nunca para decir que todo está en orden.';
+  el.style.display = '';
+  return 1;
 }
 
 // Lo último pintado, para poder repintarlo al cambiar de modo.
@@ -3825,6 +3886,14 @@ function mostrarResultadosGNN(props, metricas){
   pintarMetricaGNN('gnn-sol-metrica',
     gnnMetricaDe(metricas, ['solubilidad', 'esol']),
     [['rmse', 'RMSE'], ['mae', 'MAE']]);
+  /*
+   * El aviso de dominio va por modelo, no por molécula: los tres se
+   * entrenaron con conjuntos distintos y el mismo compuesto puede quedar
+   * dentro del de Tox21 y fuera del de ESOL.
+   */
+  pintarDominio('gnn-sol-dominio', (props.solubilidad || {}).fuera_de_dominio);
+  pintarDominio('gnn-tox-dominio', (props.toxicidad || {}).fuera_de_dominio);
+  pintarDominio('gnn-bbb-dominio', (props.bbbp || {}).fuera_de_dominio);
   // Los dos clasificadores muestran además su nivel de discriminación, para
   // que nadie lea "0,73" y "0,64" como si fueran lo mismo.
   const metTox = gnnMetricaDe(metricas, ['toxicidad', 'tox21']);
