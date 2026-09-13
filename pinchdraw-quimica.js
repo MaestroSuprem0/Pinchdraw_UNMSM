@@ -522,6 +522,41 @@
    * Nada está codificado por modelo. Si un reentrenamiento sube BBBP a 0,88,
    * el vocabulario se amplía solo.
    */
+  /*
+   * ══ FUGA ENTRE CASILLAS ═══════════════════════════════════════════
+   *
+   * El panel de estimaciones tiene tres casillas y cada una hace UN trabajo:
+   *
+   *     etiqueta     → el veredicto. Uno solo, y dice hacia dónde.
+   *     fiabilidad   → cuánto fiarse de ese veredicto.
+   *     descripción  → explica el veredicto. NUNCA emite otro.
+   *
+   * El fallo tiene nombre porque ya ha pasado tres veces, y siempre es el
+   * mismo: una casilla haciendo el trabajo de otra.
+   *
+   *   1. La fiabilidad se metió en la etiqueta. 'Indicio débil' mezclaba el
+   *      veredicto con lo poco que se puede confiar en él, y al hacerlo se
+   *      comió la dirección: el etanol (0,82, cruza) y el glifosato (0,17,
+   *      no cruza) salían con la misma cadena.
+   *
+   *   2. El veredicto se metió en la descripción. Con el dicamba a 0,60 la
+   *      etiqueta decía 'No concluyente' y la frase de debajo afirmaba que
+   *      sí atraviesa: dos veredictos, y opuestos.
+   *
+   *   3. La valencia se metió en una magnitud. El verde↔rojo de la barra de
+   *      solubilidad decía "este extremo es bueno" sobre un eje que no tiene
+   *      extremo bueno.
+   *
+   * Los tres se ven igual desde fuera: el panel discutiendo consigo mismo,
+   * y el lector creyéndose la mitad que se lee antes. Antes de añadir texto
+   * o color a una casilla, la pregunta es cuál de los tres trabajos está
+   * haciendo — y si ya lo hace otra, no se dice dos veces.
+   *
+   * test/honestidad.js lo vigila: etiqueta y descripción no pueden apuntar
+   * en direcciones distintas, y la escala de solubilidad no puede recuperar
+   * la valencia.
+   */
+
   const NIVELES_DISCRIMINACION = [
     {
       id: 'alta',
@@ -565,19 +600,47 @@
     },
     {
       /*
-       * Aquí no se afirma nada. El modelo apenas supera el azar, así que lo
-       * único honesto que se puede decir es hacia dónde se inclina y con qué
-       * poca fuerza. La dirección la aporta el porcentaje, que se muestra al
-       * lado; el adjetivo sólo dice cuánto crédito merece.
+       * Aquí no se afirma nada, pero sí se dice hacia dónde.
+       *
+       * Antes este nivel devolvía 'Indicio débil' tanto para p >= 0,65 como
+       * para p <= 0,35: la MISMA cadena para predicciones opuestas. El etanol
+       * (0,82, cruza la barrera) y el glifosato (0,17, no la cruza) salían
+       * idénticos en pantalla, de modo que por la etiqueta era imposible
+       * saber qué decía el modelo, y un acierto parecía un error.
+       *
+       * El razonamiento de entonces era que «la dirección la aporta el
+       * porcentaje, que se muestra al lado». Era defendible cuando se
+       * escribió, pero dejaba al lector haciendo la cuenta mental de si 82 es
+       * mayor que 50 — y además 'débil' se leía como si describiera la
+       * molécula (cruza poco) cuando lo que quería decir es que la evidencia
+       * es floja.
+       *
+       * Lo que lo desempata: la cautela ya está dicha, entera y con su cifra,
+       * en #gnn-bbb-fiabilidad, justo debajo del número. Dicha dos veces, una
+       * de las dos se estaba pagando con la dirección de la predicción. Así
+       * que el trabajo se reparte y no se mezcla:
+       *
+       *     la etiqueta dice QUÉ · la línea de fiabilidad dice CUÁNTO FIARSE
+       *
+       * 'Apunta a que' y no 'probablemente': atribuye la inclinación a la
+       * evidencia y no al mundo, que es lo que un modelo con ROC-AUC 0,64
+       * puede permitirse. Y así queda por debajo del 'Posible' del nivel
+       * anterior, que es donde tiene que quedar: peor modelo, palabra más
+       * floja.
+       *
+       * La banda central sigue existiendo —entre 0,35 y 0,65 no hay dirección
+       * que dar— pero ahora es lo único que se dice a los dos lados de 0,5.
        */
       id: 'muy_baja',
       minRoc: -Infinity,
       etiqueta: 'discriminación muy baja',
       descripcion: 'El modelo apenas supera el azar (ROC-AUC < 0,65; 0,5 sería '
         + 'lanzar una moneda). Su salida es un indicio, no una conclusión.',
-      vocabulario: ['Indicio débil', 'No concluyente'],
+      vocabulario: ['Apunta a que sí', 'No concluyente', 'Apunta a que no'],
       decidir: function (p) {
-        return (p >= 0.65 || p <= 0.35) ? 'Indicio débil' : 'No concluyente';
+        if (p >= 0.65) return 'Apunta a que sí';
+        if (p <= 0.35) return 'Apunta a que no';
+        return 'No concluyente';
       }
     }
   ];
@@ -601,6 +664,36 @@
 
   function interpretarProbabilidad(p, rocAuc) {
     return nivelDiscriminacion(rocAuc).decidir(p);
+  }
+
+  /*
+   * ¿El veredicto afirma una dirección, o es el de la banda central?
+   *
+   * No se compara contra un umbral escrito aquí: se le pregunta a la propia
+   * tabla, comparando con lo que ese nivel dice de una moneda al aire. La
+   * etiqueta de p = 0,5 ES la etiqueta central, por definición: es la que el
+   * nivel da cuando no hay absolutamente nada hacia lo que inclinarse. Si la
+   * de p coincide con ella, p tampoco afirma dirección.
+   *
+   * Hacerlo así tiene un motivo concreto: la banda central no mide lo mismo
+   * en todos los niveles —0,4–0,6 en el bueno, 0,35–0,65 en los flojos— y un
+   * umbral copiado aquí se quedaría viejo el día que se reentrene un modelo.
+   *
+   * OJO, que ya falló una vez: la primera versión comparaba p con su espejo
+   * 1-p, que parece lo natural y no lo es. Las bandas son SEMIABIERTAS
+   * —'p >= 0,4' entra en Incierto pero 'p >= 0,6' ya es Probable— así que en
+   * el borde exacto p y 1-p caen en etiquetas distintas: con p = 0,40 y
+   * ROC-AUC 0,92 la etiqueta decía "Incierto" y esta función respondía que
+   * sí había dirección. La descripción se ponía entonces a afirmar por su
+   * cuenta lo que la etiqueta no afirmaba, que es justo el fallo que esto
+   * venía a evitar. Lo cazó la comprobación de test/honestidad.js.
+   *
+   * Que la etiqueta de 0,5 sea de verdad la central —la única que aparece a
+   * los dos lados— lo vigila esa misma prueba.
+   */
+  function veredictoTieneDireccion(p, rocAuc) {
+    const nivel = nivelDiscriminacion(rocAuc);
+    return nivel.decidir(p) !== nivel.decidir(0.5);
   }
 
   const TAREAS_TOX21 = [
@@ -1125,6 +1218,7 @@
     // comprueben la calibración contra la misma tabla que usa el motor. Si se
     // duplicaran los umbrales, acabarían discrepando.
     interpretarProbabilidad: interpretarProbabilidad,
+    veredictoTieneDireccion: veredictoTieneDireccion,
     nivelDiscriminacion: nivelDiscriminacion,
     interpretarLogS: interpretarLogS,
     Modelo: Modelo,

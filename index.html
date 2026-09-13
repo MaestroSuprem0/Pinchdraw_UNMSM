@@ -17,7 +17,7 @@
        así la app no depende de que unpkg esté disponible, y el .wasm queda
        cacheado en el navegador tras la primera visita. -->
   <script src="RDKit_minimal.js"></script>
-  <script src="pinchdraw-quimica.js?v=f5f74c3bad"></script>
+  <script src="pinchdraw-quimica.js?v=7208769283"></script>
   <script>
     // Si el módulo de química no llegó a cargarse, se avisa en pantalla en
     // vez de dejar que la página reviente con un error críptico.
@@ -83,12 +83,93 @@
   </script>
   <style>
     *{margin:0;padding:0;box-sizing:border-box;}
-    body{background:#000;overflow:hidden;}
+    /*
+     * ── Modo exterior ────────────────────────────────────────────────
+     *
+     * En la feria se presentó al aire libre y no se veía nada: fondo negro,
+     * trazo blanco fino y sol directo. Exterior invierte el lienzo y engorda
+     * el trazo.
+     *
+     * Estas variables las consume tanto el CSS como el JS del sketch de p5
+     * (ver PALETA_LIENZO más abajo), para que no haya dos listas de colores
+     * que mantener.
+     */
+    :root{
+      --lienzo-fondo:#000;          /* body: sólo se ve con el vídeo por CSS */
+      --lienzo-fondo-video:#08080e; /* el que compone con el vídeo al 10,4 % */
+      --ui-titulo:#fff;
+      --ui-sub:#555;
+      --ui-hint:#ff8a8a;
+      --ui-etiqueta:#b9c6d6;   /* CORRECCIÓN, y textos sueltos sobre el lienzo */
+      --ui-etiqueta-2:#666;    /* el valor del deslizador */
+      --ui-chip-texto:#f5f5f5; /* dentro de las píldoras oscuras */
+    }
+    body[data-exterior="si"]{
+      --lienzo-fondo:#f4f2ee;
+      --lienzo-fondo-video:#f4f2ee;
+      --ui-titulo:#0b0b0b;
+      --ui-sub:#3a3a3a;
+      --ui-hint:#7a0a14;
+      --ui-etiqueta:#1a1a1a;
+      --ui-etiqueta-2:#2a2a2a;
+      --ui-chip-texto:#ffffff;
+    }
+    body{background:var(--lienzo-fondo);overflow:hidden;}
+
+    /*
+     * Las píldoras se quedan OSCURAS también en exterior: una pastilla negra
+     * sobre fondo claro se lee de lejos y al sol mejor que cualquier otra
+     * combinación. Lo que cambia es el texto de dentro, que en interior es
+     * gris apagado y ahí no se leería.
+     *
+     * El borde no se toca a propósito: es lo que distingue cada botón
+     * (analizar azul, catálogo morado, reacción naranja…) y perder eso sería
+     * cambiar la interfaz, no hacerla legible.
+     */
+    body[data-exterior="si"] .btn,
+    body[data-exterior="si"] #btn-analizar,
+    body[data-exterior="si"] #btn-catalogo,
+    body[data-exterior="si"] #btn-cache,
+    body[data-exterior="si"] #btn-drawing-mode,
+    body[data-exterior="si"] #btn-borrar-punto,
+    body[data-exterior="si"] #btn-export,
+    body[data-exterior="si"] #btn-reaccion,
+    body[data-exterior="si"] #btn-guia,
+    body[data-exterior="si"] #btn-historial,
+    body[data-exterior="si"] #btn-modo,
+    /* Con los dos atributos, para ganarle a `body[data-modo="pro"] #btn-modo`,
+       que le pone un morado translúcido: compuesto sobre el lienzo claro
+       dejaba el texto en 2,17:1, ilegible. Misma especificidad y va después en
+       la hoja, así que sin este selector doble ganaba aquélla. */
+    body[data-exterior="si"][data-modo="pro"] #btn-modo,
+    body[data-exterior="si"] #state-badge,
+    body[data-exterior="si"] #live-detection,
+    body[data-exterior="si"] .reactivo-chip{
+      background:rgba(0,0,0,0.90);
+      color:var(--ui-chip-texto);
+    }
+    /* El indicador de detección tiene sus propios estados de color; en
+       exterior se suben a tonos que aguanten el sol sobre negro. */
+    body[data-exterior="si"] #live-detection.ok  {color:#5cf5c8;}
+    body[data-exterior="si"] #live-detection.warn{color:#ffd54a;}
+    body[data-exterior="si"] .reactivo-chip.lleno{color:#bcdcff;}
+    /* El recuadro de cámara se queda oscuro: dentro va la imagen de vídeo. */
+
+    /* Botón de exterior. Va junto al de modo porque son hermanos: uno decide
+       qué se enseña y el otro cómo se ve. */
+    #btn-exterior{pointer-events:auto;flex-shrink:0;
+      font-family:'Courier New',monospace;font-size:14px;letter-spacing:1px;
+      padding:7px 13px;background:rgba(0,0,0,0.88);border-radius:6px;cursor:pointer;
+      border:1px solid #a08a3a;color:#e8d48a;transition:all 0.2s;}
+    #btn-exterior:hover{border-color:#e8d48a;color:#fff;
+      box-shadow:0 0 10px rgba(232,212,138,0.25);}
+    body[data-exterior="si"] #btn-exterior{border-color:#7a6410;color:#fff8dc;
+      background:rgba(0,0,0,0.90);}
     canvas{display:block;position:fixed;top:0;left:0;}
     #ui{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:16px 20px;pointer-events:none;z-index:20;}
     #branding{display:flex;flex-direction:column;gap:4px;}
-    #title{font-family:'Courier New',monospace;font-size:18px;font-weight:bold;letter-spacing:4px;color:#fff;}
-    #subtitle{font-family:'Courier New',monospace;font-size:10px;color:#555;letter-spacing:2px;}
+    #title{font-family:'Courier New',monospace;font-size:18px;font-weight:bold;letter-spacing:4px;color:var(--ui-titulo);}
+    #subtitle{font-family:'Courier New',monospace;font-size:10px;color:var(--ui-sub);letter-spacing:2px;}
     #status-cluster{display:flex;flex-direction:column;align-items:flex-end;gap:6px;pointer-events:none;}
     #state-badge{font-family:'Courier New',monospace;font-size:12px;padding:5px 16px;border-radius:20px;border:1px solid #333;background:rgba(0,0,0,0.6);color:#666;letter-spacing:2px;transition:all 0.2s;}
     #state-badge.pinching{color:#fff;border-color:#fff;}
@@ -103,16 +184,16 @@
     /* Debajo de #ui, que mide lo que mide según envuelvan el título y el
        conmutador de modo. Con `top:64px` se metía dentro. */
     #correction-panel{position:fixed;top:calc(var(--alto-ui, 64px) + 8px);right:20px;z-index:20;display:flex;flex-direction:column;gap:4px;align-items:flex-end;}
-    #correction-panel label{font-family:'Courier New',monospace;font-size:14px;color:#b9c6d6;letter-spacing:2px;}
+    #correction-panel label{font-family:'Courier New',monospace;font-size:14px;color:var(--ui-etiqueta);letter-spacing:2px;}
     #eps-row{display:flex;align-items:center;gap:6px;}
     #eps-slider{width:100px;accent-color:#888;cursor:pointer;}
-    #eps-value{font-family:'Courier New',monospace;font-size:10px;color:#666;width:32px;text-align:right;}
+    #eps-value{font-family:'Courier New',monospace;font-size:10px;color:var(--ui-etiqueta-2);width:32px;text-align:right;}
     /* `bottom` medido y no fijo: la fila de acciones envuelve y crece hacia
        arriba, de modo que a 1024 px de ancho ocupa 154 px y los 100 px de
        antes dejaban a #hint encima de dos botones. */
     #hint{position:fixed;
       bottom:calc(var(--alto-lanzadores, 32px) + var(--alto-botones, 44px) + 26px);
-      left:50%;transform:translateX(-50%);font-family:'Courier New',monospace;font-size:14px;color:#ff8a8a;letter-spacing:1px;white-space:nowrap;pointer-events:none;z-index:20;text-align:center;line-height:1.6;}
+      left:50%;transform:translateX(-50%);font-family:'Courier New',monospace;font-size:14px;color:var(--ui-hint);letter-spacing:1px;white-space:nowrap;pointer-events:none;z-index:20;text-align:center;line-height:1.6;}
     #buttons{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);display:flex;gap:10px;z-index:20;flex-wrap:wrap;justify-content:center;max-width:calc(100vw - 230px);}
     .btn{font-family:'Courier New',monospace;font-size:11px;letter-spacing:2px;padding:7px 18px;background:rgba(0,0,0,0.8);border-radius:6px;cursor:pointer;transition:all 0.2s;color:#666;border:1px solid #333;}
     .btn:hover{border-color:#bbb;color:#fff;}
@@ -126,6 +207,8 @@
     #btn-drawing-mode{border-color:#457b9d;color:#8ecae6;}
     #btn-drawing-mode:hover{background:rgba(69,123,157,0.15);border-color:#8ecae6;color:#fff;}
     #drawing-mode-label{font-family:'Courier New',monospace;font-size:9px;color:#8ecae6;letter-spacing:1px;align-self:center;white-space:nowrap;}
+    /* Va suelto sobre el lienzo, sin píldora que lo respalde. */
+    body[data-exterior="si"] #drawing-mode-label{color:#123a52;font-weight:bold;}
     #btn-borrar-punto{border-color:#e76f51;color:#f4a261;}
     #btn-borrar-punto:hover{background:rgba(231,111,81,0.15);border-color:#f4a261;color:#fff;}
     /* ── Exportación del dibujo: descarga solo la capa de trazos, sin UI ni cámara ── */
@@ -362,7 +445,15 @@
     .d3btn:hover{border-color:#4a9eff;color:#4a9eff;}
     .d3btn.active{border-color:#06d6a0;color:#06d6a0;}
     #mol-3d-viewer{width:100%;height:240px;background:#080810;position:relative;}
-    #mol-3d-status{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:10px;color:#444;letter-spacing:1px;pointer-events:none;}
+    #mol-3d-status{position:absolute;inset:0;display:flex;flex-direction:column;gap:9px;align-items:center;justify-content:center;font-size:10px;color:#444;letter-spacing:1px;pointer-events:none;text-align:center;padding:0 14px;}
+    #mol-3d-status-txt{line-height:1.5;max-width:34ch;}
+    /* El contenedor no recibe clics para no tapar el visor; el botón sí. */
+    #btn-3d-reintentar{pointer-events:auto;font-family:'Courier New',monospace;
+      font-size:11px;letter-spacing:1px;padding:6px 14px;border-radius:6px;
+      cursor:pointer;background:rgba(74,158,255,0.12);border:1px solid #4a9eff;
+      color:#7bbfff;transition:all 0.15s;}
+    #btn-3d-reintentar:hover{background:rgba(74,158,255,0.25);color:#fff;}
+    #btn-3d-reintentar[hidden]{display:none;}
 
     #confianza-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
     #confianza-label{font-size:9px;color:#444;letter-spacing:2px;white-space:nowrap;}
@@ -403,6 +494,22 @@
       font-size:11px;letter-spacing:0.3px;cursor:help;vertical-align:middle;
       background:var(--p-nivel-fondo);border:1px solid var(--p-info-borde);color:var(--p-nivel-texto);}
     .gnn-nivel.debil{background:var(--p-debil-fondo);border-color:var(--p-debil-borde);color:var(--p-debil-texto);}
+    /* ── Lo que un resultado NO dice ──────────────────────────────────
+       A la vista en los dos modos y a 14 px, como el resto del texto: no
+       es letra pequeña ni una nota al pie. Quien lee "0 de 12" y se marcha
+       con la idea de "inofensiva" es justo quien nunca va a pasar el ratón
+       por encima de nada, así que esto no puede vivir en un tooltip.
+       El ámbar es el mismo de .gnn-nivel.debil: el aviso de modelo flojo y
+       el aviso de resultado malinterpretable son la misma familia. */
+    .gnn-salvedad{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+      font-size:14px;line-height:1.5;letter-spacing:0;cursor:help;
+      color:var(--p-debil-texto);background:var(--p-debil-fondo);
+      border-left:3px solid var(--p-debil-borde);border-radius:0 4px 4px 0;
+      margin-top:2px;padding:6px 9px;}
+    /* Cuando no hay nada que advertir el mismo hueco sigue ahí, en azul de
+       dato: el número de fiabilidad se sigue leyendo, sin alarma. */
+    .gnn-salvedad.neutra{color:var(--p-info-texto);background:var(--p-info-fondo);
+      border-left-color:var(--p-info-borde);}
     /* ── Métrica del modelo bajo cada estimación ──────────────────────
        12 px y 6,9:1 de contraste sobre el fondo del panel. Es letra pequeña
        a propósito —es un dato secundario— pero tiene que leerse proyectada,
@@ -411,6 +518,51 @@
       margin-top:3px;padding:5px 8px;background:var(--p-info-fondo);
       border-left:2px solid var(--p-info-borde);border-radius:0 4px 4px 0;cursor:help;}
     .gnn-metrica b{color:var(--p-info-fuerte);font-weight:bold;}
+    /* ── DATO VERIFICADO ──────────────────────────────────────────────
+       El primer bloque de la app que NO es una estimación.
+
+       Aquí se cobra la otra mitad de la regla del color. Cuando se quitó el
+       verde de las predicciones se dejó .gnn-pred-tag.ok declarada y sin usar,
+       «reservada para los datos verificados que se añadirán más adelante».
+       Éstos son. Un límite del ECA no se estima: se cita, con decreto, número
+       y fecha.
+
+       Por eso el bloque tiene que verse distinto del panel de estimaciones, y
+       ese contraste ES el contenido: quien vea las dos cosas juntas —«no
+       sustituyen determinaciones experimentales» arriba y «D.S. N°
+       004-2017-MINAM, vigente» abajo— entiende en dos segundos qué es cada
+       una. Usa las mismas variables --tag-ok-* que el verde reservado. */
+    .norma{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+      letter-spacing:0;margin-top:2px;padding:9px 11px;border-radius:0 6px 6px 0;
+      background:var(--tag-ok-fondo);border-left:3px solid var(--tag-ok-borde);}
+    .norma-cab{display:flex;justify-content:space-between;align-items:baseline;
+      gap:8px;flex-wrap:wrap;margin-bottom:5px;}
+    .norma-titulo{font-size:14px;color:var(--tag-ok-texto);letter-spacing:1px;font-weight:bold;}
+    .norma-sello{font-size:11px;color:var(--tag-ok-texto);border:1px solid var(--tag-ok-borde);
+      border-radius:9px;padding:1px 8px;white-space:nowrap;}
+    .norma-cifra{font-size:17px;color:var(--p-valor);font-weight:bold;}
+    .norma-txt{font-size:14px;color:var(--p-texto);line-height:1.5;}
+    .norma-txt b{color:var(--p-valor);}
+    /* La fuente, siempre visible: un dato verificado sin su norma delante no
+       se distingue de una estimación. */
+    .norma-fuente{font-size:12px;color:var(--tag-ok-texto);line-height:1.5;margin-top:6px;
+      padding-top:5px;border-top:1px solid var(--tag-ok-borde);}
+    /* Tabla de categorías del modo profesional. */
+    table.norma-tabla{width:100%;border-collapse:collapse;font-size:14px;margin-top:5px;
+      color:var(--p-texto);}
+    table.norma-tabla th{text-align:left;font-weight:normal;color:var(--tag-ok-texto);
+      padding:3px 6px 3px 0;border-bottom:1px solid var(--tag-ok-borde);font-size:14px;}
+    table.norma-tabla td{padding:3px 6px 3px 0;border-bottom:1px solid var(--p-borde-sutil);
+      vertical-align:top;}
+    table.norma-tabla td.num{text-align:right;font-variant-numeric:tabular-nums;
+      color:var(--p-valor);white-space:nowrap;}
+    table.norma-tabla td.na{color:var(--p-texto-2);}
+    .norma-grupo{font-size:14px;color:var(--tag-ok-texto);padding-top:6px;}
+    /* Salvedad dentro del bloque: mismo ámbar del resto de la app, para que
+       un aviso se lea como aviso esté donde esté. */
+    .norma-aviso{font-size:14px;line-height:1.5;margin-top:6px;padding:5px 8px;
+      color:var(--p-debil-texto);background:var(--p-debil-fondo);
+      border-left:2px solid var(--p-debil-borde);border-radius:0 4px 4px 0;}
     /* Nota de limitación: permanente, discreta, no descartable. */
     #gnn-nota{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:12px;color:var(--p-aviso-texto);line-height:1.55;
       margin-top:2px;padding:8px 10px;background:var(--p-aviso-fondo);
@@ -444,6 +596,13 @@
       --p-ambar:#e0c98a;      --p-rx-fondo:#171208;    --p-rx-borde:#4a3a18;
       --p-ficha-titulo:#cbd8e6; --p-ficha-k:#a8b6c6;
       --p-escala:#8fa88f;     --p-sep:#6f8a9e;
+      --p-barra-neutra:#4a7fa8;
+      /* Rampa secuencial de solubilidad: un solo tono, de menos a más
+         intensidad conforme sube el logS. Sobre fondo oscuro eso significa
+         ir aclarando; en la paleta clara es al revés. Lo que se mantiene
+         en los dos temas es que crece de forma monótona y que ningún
+         extremo es «el bueno». */
+      --p-sol-bajo:#2a4d66;   --p-sol-medio:#4a7fa8;  --p-sol-alto:#a8cfe8;
       --p-tox-mini:#22331f;   --p-tox-sobre:#ffd9a0;   --p-tox-punto:#ff9f45;
       --tag-ok-fondo:#063a1a; --tag-ok-texto:#06d6a0;  --tag-ok-borde:#0a5a2a;
       --tag-warn-fondo:#3a2a00;--tag-warn-texto:#ffbe0b;--tag-warn-borde:#5a4a00;
@@ -462,8 +621,19 @@
       --badge-error:#d89a9a;    --badge-error-borde:#6a3a3a;
     }
 
-    /* Cerámica de laboratorio. Sólo cambian las variables. */
-    body[data-modo="pro"]{
+    /* ── Paleta clara, compartida por dos cosas distintas ─────────────
+       Cerámica de laboratorio. Sólo cambian las variables.
+
+       La usan DOS estados que no tienen nada que ver entre sí:
+
+         [data-modo="pro"]     cuánta información se enseña
+         [data-exterior="si"]  cómo se ve, para leerla al sol
+
+       Van en la misma regla y no en dos copias: dos copias de una paleta se
+       separan a la primera de cambio. Las cuatro combinaciones de modo y
+       exterior funcionan porque son atributos independientes. */
+    body[data-modo="pro"],
+    body[data-exterior="si"]{
       --p-fondo:#f4f2ee;      --p-fondo-2:#f4f2ee;     --p-fondo-3:#efece6;
       --p-cabecera:#e6e2d9;   --p-borde:#c9c4bc;       --p-borde-2:#c9c4bc;
       --p-borde-sutil:#dcd7cd;--p-borde-sutil-2:#dcd7cd;
@@ -480,6 +650,8 @@
       --p-ambar:#54400f;      --p-rx-fondo:#f2ede1;    --p-rx-borde:#cbbf9e;
       --p-ficha-titulo:#1c3646; --p-ficha-k:#333333;
       --p-escala:#3a563a;     --p-sep:#37505f;
+      --p-barra-neutra:#2b6a99;
+      --p-sol-bajo:#a9c6d9;   --p-sol-medio:#4d86ad;  --p-sol-alto:#173f5f;
       --p-tox-mini:#ddd8cc;   --p-tox-sobre:#5f3600;   --p-tox-punto:#8a4f00;
       --tag-ok-fondo:#d6f0e2; --tag-ok-texto:#0a5336;  --tag-ok-borde:#7fc0a4;
       --tag-warn-fondo:#f7ecc9;--tag-warn-texto:#5f4600;--tag-warn-borde:#c9a94a;
@@ -665,9 +837,15 @@
     .gnn-divider{height:1px;background:var(--p-borde);}
     .gnn-pred-row{display:flex;justify-content:space-between;align-items:center;}
     .gnn-pred-tag{font-size:14px;padding:3px 10px;border-radius:8px;letter-spacing:0.5px;}
+    /* Sin usar a propósito: ninguna ESTIMACIÓN se pinta de verde. Queda
+       reservada para los datos verificados que se añadirán más adelante,
+       que son los únicos que se pueden permitir decir que algo está bien. */
     .gnn-pred-tag.ok{background:var(--tag-ok-fondo);color:var(--tag-ok-texto);border:1px solid var(--tag-ok-borde);}
     .gnn-pred-tag.warn{background:var(--tag-warn-fondo);color:var(--tag-warn-texto);border:1px solid var(--tag-warn-borde);}
     .gnn-pred-tag.bad{background:var(--tag-bad-fondo);color:var(--tag-bad-texto);border:1px solid var(--tag-bad-borde);}
+    /* Para una propiedad que no es buena ni mala en abstracto. Azul de dato,
+       el mismo de .gnn-nivel: informa, no puntúa. */
+    .gnn-pred-tag.neutro{background:var(--p-nivel-fondo);color:var(--p-nivel-texto);border:1px solid var(--p-info-borde);}
     #gnn-servidor-off{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;color:var(--p-texto-2);letter-spacing:0;padding:10px;text-align:center;line-height:1.5;}
 
     /* ── REACTIVOS PARA REACCIÓN (chips + botones en el modal) ── */
@@ -933,12 +1111,16 @@
          #pubchem-link    enlace a la ficha
 
        El dibujo, el reconocimiento de trazos, los tres modelos GNN, RDKit,
-       el catálogo de 250 y el historial son locales y siguen enteros.
+       el catálogo de moléculas y el historial son locales y siguen enteros.
 
        Se oculta, no se quita: al volver la red reaparece solo. */
     body[data-red="no"] #mol-3d-section,
     body[data-red="no"] #rx-3d-section,
     body[data-red="no"] #pubchem-link{display:none !important;}
+    /* Excepción: si el SDF ya está en la caché local, el visor 3D NO necesita
+       red y no hay motivo para esconderlo. La clase la pone cargar3D() cuando
+       ha pintado desde caché. */
+    body[data-red="no"] #mol-3d-section.desde-cache{display:block !important;}
     .solo-sin-red{display:none;}
     body[data-red="no"] .solo-sin-red{display:block;}
     #aviso-sin-red{font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
@@ -996,6 +1178,11 @@
   <div id="ui-izquierda">
     <button id="btn-modo" type="button"
             title="Cambia entre la vista sencilla y la vista con todos los datos">MODO NIÑO</button>
+    <!-- Interruptor aparte del modo, no un tercer valor de data-modo: uno
+         decide CUÁNTA información se enseña y el otro CÓMO se ve. Un profesor
+         al sol quiere pro + exterior; un niño al sol, niño + exterior. -->
+    <button id="btn-exterior" type="button"
+            title="Alto contraste para ver la pantalla con luz de día">☀ EXTERIOR</button>
     <div id="branding">
       <div id="title">Proyecto Quimica</div>
       <div id="subtitle">Analisis molecular SFS</div>
@@ -1123,7 +1310,7 @@
   <button class="btn" id="btn-export" title="Descarga solo el dibujo, sin interfaz ni cámara" aria-label="Exportar PNG">📷 <span class="btn-txt">EXPORTAR PNG</span></button>
   <button class="btn" id="btn-drawing-mode" type="button" title="Alterna entre pinza y dedo índice" aria-label="Modo de dibujo">🖐 <span class="btn-txt">MODO DIBUJO</span></button>
   <span id="drawing-mode-label">Modo lápiz</span>
-  <button class="btn" id="btn-catalogo" title="Abrir el catálogo de 250 compuestos" aria-label="Catálogo">⚛ <span class="btn-txt">CATÁLOGO 250+</span></button>
+  <button class="btn" id="btn-catalogo" title="Abrir el catálogo de compuestos" aria-label="Catálogo">⚛ <span class="btn-txt" id="btn-catalogo-txt">CATÁLOGO</span></button>
   <button class="btn" id="btn-cache" title="Borrar datos locales de PubChem" aria-label="Limpiar caché">🧹 <span class="btn-txt">CACHÉ</span></button>
   <button class="btn" id="btn-analizar" disabled title="Analizar el dibujo" aria-label="Analizar">🔬 <span class="btn-txt">ANALIZAR</span></button>
   <button class="btn" id="btn-reaccion" title="Simular una reacción" aria-label="Reacción">🧪 <span class="btn-txt">REACCIÓN</span></button>
@@ -1145,7 +1332,7 @@
     <button id="catalogo-close">✕</button>
     <div id="catalogo-titulo">⚛ CATÁLOGO VISUAL DE COMPUESTOS</div>
     <div id="catalogo-subtitulo">
-      Incluye las 250 moléculas ambientales del dataset. Busca por nombre, fórmula, SMILES o forma de trazo.
+      Incluye las moléculas ambientales del dataset. Busca por nombre, fórmula, SMILES o forma de trazo.
     </div>
     <div id="catalogo-controls">
       <input id="catalogo-search" type="search" placeholder="Buscar molécula, fórmula, SMILES o trazo..." autocomplete="off"/>
@@ -1199,7 +1386,12 @@
         </div>
       </div>
       <div id="mol-3d-viewer" style="position:relative;">
-        <div id="mol-3d-status">Cargando estructura 3D…</div>
+        <div id="mol-3d-status">
+          <span id="mol-3d-status-txt">Cargando estructura 3D…</span>
+          <!-- Sólo aparece cuando hay algo que reintentar. Reintentar el 3D no
+               debería obligar a cerrar y reabrir la ficha entera. -->
+          <button id="btn-3d-reintentar" type="button" hidden>↻ Reintentar</button>
+        </div>
       </div>
     </div>
 
@@ -1221,6 +1413,10 @@
           Cargando el motor de química…
         </div>
 
+        <!-- Dos moléculas distintas con el mismo grafo: los modelos no
+             pueden separarlas y hay que decirlo antes de las cifras. -->
+        <div class="gnn-salvedad" id="gnn-isomero" style="display:none"></div>
+
         <!-- Solubilidad -->
         <div class="gnn-prop" id="gnn-sol-row" style="display:none">
           <div class="gnn-prop-header">
@@ -1238,6 +1434,11 @@
           <span class="gnn-prop-interp" id="gnn-sol-interp">—</span>
           <span class="gnn-prop-interp" id="gnn-sol-mol">—</span>
           <div class="gnn-metrica" id="gnn-sol-metrica" style="display:none"></div>
+          <!-- El límite legal va PEGADO al logS, no al final de la ficha: el
+               modelo estima si la molécula viaja con el agua y la ley dice
+               cuánta se permite en el agua. Juntas dicen algo; separadas son
+               dos datos sueltos. -->
+          <div class="norma" id="norma-eca" style="display:none"></div>
         </div>
 
         <div class="gnn-divider" id="gnn-div1" style="display:none"></div>
@@ -1250,6 +1451,9 @@
           </div>
           <div class="gnn-track"><div class="gnn-bar" id="gnn-tox-bar"></div></div>
           <span class="gnn-prop-interp" id="gnn-tox-detail">—</span>
+          <!-- Qué NO dice un cero. Sin .solo-pro a propósito: el niño es
+               quien va a sacar la conclusión equivocada. -->
+          <div class="gnn-salvedad" id="gnn-tox-cero" style="display:none"></div>
           <div class="gnn-metrica" id="gnn-tox-metrica" style="display:none"></div>
         <!-- Los 12 ensayos, que es lo que hace defendible no resumirlos en uno. -->
         <div id="tox-tabla-wrap" class="solo-pro" style="display:none">
@@ -1269,10 +1473,14 @@
             <span class="gnn-prop-label">🧠 BARRERA HEMATOENCEF.</span>
             <span class="gnn-pred-tag" id="gnn-bbb-tag">—</span>
           </div>
+          <!-- Antes de la barra, no debajo de todo: es imposible leer el
+               porcentaje sin leer cuánto acierta el modelo que lo produce. -->
+          <div class="gnn-salvedad" id="gnn-bbb-fiabilidad" style="display:none"></div>
           <div class="gnn-track"><div class="gnn-bar" id="gnn-bbb-bar"></div></div>
           <span class="gnn-prop-interp" id="gnn-bbb-detail">—</span>
           <div class="gnn-metrica" id="gnn-bbb-metrica" style="display:none"></div>
         </div>
+        <div class="norma" id="norma-cosing" style="display:none"></div>
         <!-- Nota de limitación: permanente. Una herramienta que dice "no
              tóxico" y se equivoca es un problema de responsabilidad, no un
              detalle de presentación. -->
@@ -1356,7 +1564,10 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.3/p5.min.js"></script>
-<script src="molecules_250.js?v=6061dd6087"></script>
+<script src="molecules_250.js?v=a4844a395b"></script>
+<!-- Límites legales y estatus regulatorio. Generado por
+     herramientas/generar_normativa.js desde datos/*.json. -->
+<script src="normativa.js?v=04ec4e429a"></script>
 <script src="elementos_quimicos.js?v=ee39e256ab"></script>
 <script src="pinchdraw-trazos.js?v=d2af85020e"></script>
 
@@ -1504,6 +1715,9 @@ function calidadAdaptativa(fps,ahora){
 let camStream=null,bgVideoEl=null;
 
 const CAMARA_KEY='pinchdraw_camara_v1';
+// Abrir una cámara puede tardar un par de segundos con el controlador frío;
+// doce es de sobra y sigue siendo mejor que esperar indefinidamente.
+const CAMARA_TIMEOUT_MS=12000;
 let camDispositivos=[];        // los videoinput que se conocen
 let camActual=null;            // deviceId en uso
 let camBucle=false;            // ¿está corriendo el bucle de manos?
@@ -1529,13 +1743,36 @@ function elegirCamaraPorDefecto(lista){
   return (buenas.length ? buenas[0] : lista[0]).deviceId || null;
 }
 
+/*
+ * Enumerar las cámaras, con reintento.
+ *
+ * `enumerateDevices()` devuelve a veces una lista VACÍA justo después del
+ * primer `getUserMedia`, aunque la cámara esté abierta y funcionando. Se
+ * observó midiendo: en tres de once ejecuciones de la prueba de humo la app
+ * tenía un stream vivo y una petición hecha, y aun así `camDispositivos`
+ * quedaba a cero.
+ *
+ * Sin reintento eso deja el selector escondido para siempre —con dos cámaras
+ * también—, porque la lista sólo se vuelve a leer con un `devicechange` que
+ * quizá no llegue nunca. Y es un fallo silencioso: la app va bien, sólo que
+ * no puedes elegir cámara.
+ *
+ * Si hay un stream vivo, una lista vacía es falsa por definición: al menos
+ * una cámara hay. Ahí es donde se reintenta.
+ */
 async function enumerarCamaras(){
-  try{
-    const todos=await navigator.mediaDevices.enumerateDevices();
-    camDispositivos=todos.filter(d=>d.kind==='videoinput');
-  }catch(e){
-    camDispositivos=[];
-    console.warn('No se pudieron enumerar las cámaras:',e);
+  for(let intento=0; intento<3; intento++){
+    try{
+      const todos=await navigator.mediaDevices.enumerateDevices();
+      camDispositivos=todos.filter(d=>d.kind==='videoinput');
+    }catch(e){
+      camDispositivos=[];
+      console.warn('No se pudieron enumerar las cámaras:',e);
+    }
+    const hayStreamVivo = !!camStream &&
+      camStream.getVideoTracks().some(t=>t.readyState==='live');
+    if(camDispositivos.length || !hayStreamVivo) break;
+    await new Promise(r=>setTimeout(r,250));
   }
   return camDispositivos;
 }
@@ -1594,6 +1831,11 @@ function explicarErrorCamara(e){
         html:'<b>La cámara está en uso.</b> Otra aplicación la tiene cogida '
           + '(Teams, Zoom, la app de Cámara de Windows…) o el controlador la '
           + 'rechazó. Ciérrala y recarga.'};
+    case 'TimeoutError':
+      return {badge:'❌ CÁMARA SIN RESPONDER',
+        html:'<b>La cámara no responde.</b> El sistema aceptó la petición y no '
+          + 'devolvió imagen. Suele arreglarse cerrando la aplicación que la '
+          + 'tenga abierta, o desconectando y volviendo a conectar la cámara.'};
     case 'OverconstrainedError':
       return {badge:'❌ CÁMARA NO DISPONIBLE',
         html:'<b>La cámara elegida ya no está.</b> Se vuelve a intentar con la '
@@ -1625,7 +1867,24 @@ async function pedirCamara(deviceId){
   // devolver otra cámara, que es justo lo que se quiere evitar.
   if(deviceId) video.deviceId={exact:deviceId};
   camPeticiones++;
-  const s=await navigator.mediaDevices.getUserMedia({video, audio:false});
+  /*
+   * Con plazo, por el mismo motivo que las peticiones a PubChem: un `await`
+   * sin límite que no vuelve deja la app en un estado que parece que funciona.
+   *
+   * Medido: en una de cada seis ejecuciones de la prueba de humo,
+   * `getUserMedia` no resolvía nunca. `camPeticiones` valía 1, `camStream`
+   * seguía a null y NO había ningún aviso en pantalla — el badge decía "SIN
+   * MANO" para siempre y no había forma de saber por qué. Es exactamente el
+   * modo de fallo peor: parece que está buscando la mano.
+   */
+  const s=await Promise.race([
+    navigator.mediaDevices.getUserMedia({video, audio:false}),
+    new Promise((_,rechazar)=>setTimeout(()=>{
+      const e=new Error('la cámara no respondió a tiempo');
+      e.name='TimeoutError';
+      rechazar(e);
+    }, CAMARA_TIMEOUT_MS))
+  ]);
   // El anterior se suelta DESPUÉS de tener el nuevo: si se soltara antes y el
   // nuevo fallara, la app se quedaría sin imagen por intentar cambiar.
   if(camStream && camStream!==s) soltarStream(camStream);
@@ -2044,6 +2303,17 @@ const ELEMENTOS=(window.PINCHDRAW_ELEMENTOS||[]).map(e=>({
 }));
 
 const CATALOGO_DB=[...ELEMENTOS,...DATASET_250];
+/*
+ * El rótulo del botón decía "CATÁLOGO 250+" escrito a mano y se quedó viejo
+ * en cuanto el catálogo pasó a 256. Ahora lo cuenta de los propios datos: el
+ * "+" son los elementos y las moléculas básicas, que van aparte.
+ */
+(function rotularCatalogo(){
+  const txt = document.getElementById('btn-catalogo-txt');
+  if(txt) txt.textContent = 'CATÁLOGO ' + DATASET_250.length + '+';
+  const btn = document.getElementById('btn-catalogo');
+  if(btn) btn.title = 'Abrir el catálogo de ' + DATASET_250.length + ' compuestos';
+})();
 const catalogoSmiles=new Set(CATALOGO_DB.map(m=>m.smiles));
 DB.forEach(m=>{if(!catalogoSmiles.has(m.smiles)) CATALOGO_DB.unshift(m);});
 // Plantillas de DB que no estaban ya en el dataset. Se cuentan aparte para que
@@ -2430,13 +2700,94 @@ function blobToDataURL(blob){
   });
 }
 
+/*
+ * ══════════════════════════════════════════════════════════════════
+ *  PETICIONES A PUBCHEM — todas con plazo
+ * ══════════════════════════════════════════════════════════════════
+ *
+ * Ninguna de las cuatro llamadas a PubChem tenía límite de tiempo, y
+ * `obtenerPubChemMolecula` espera a tres de ellas con `Promise.allSettled`,
+ * que no rechaza nunca. Una conexión aceptada y sin respuesta dejaba esa
+ * promesa colgada para siempre, y con ella la ficha entera: el visor 3D se
+ * quedaba en "Cargando estructura 3D…" —el texto estático del HTML, la señal
+ * de que `cargar3D()` ni siquiera se había llegado a llamar—, el nombre IUPAC
+ * en "Cargando…" y la imagen en su hueco.
+ *
+ * No es un caso raro: PubChem estrangula las peticiones de este proyecto
+ * (dio ServerBusy de forma sostenida al descargar los usos), así que es el
+ * comportamiento habitual del servidor con este usuario.
+ *
+ * Un envoltorio único y no cuatro AbortController sueltos: cuatro copias del
+ * mismo patrón se desincronizan a la primera de cambio.
+ */
+const PUBCHEM_TIMEOUT_MS = 10000;
+
+async function fetchConTimeout(url, opciones = {}, ms = PUBCHEM_TIMEOUT_MS){
+  const ac = new AbortController();
+  let reloj = null;
+  /*
+   * Dos mecanismos, y los dos hacen falta:
+   *
+   *   · `AbortController` CANCELA la petición de verdad. Sin él la conexión
+   *     seguiría abierta consumiendo un hueco del navegador aunque a nosotros
+   *     ya no nos interese.
+   *   · La carrera contra un temporizador GARANTIZA que esta promesa termina.
+   *     Abortar sólo sirve si quien atiende el fetch respeta la señal, y eso
+   *     no siempre pasa: un interceptor, un service worker o un polyfill
+   *     viejo pueden ignorarla. Se comprobó: con un `fetch` sustituido que no
+   *     mira el `signal`, la versión que sólo abortaba se quedaba colgada
+   *     igual que antes.
+   *
+   * Cancelar sin garantizar deja el mismo cuelgue; garantizar sin cancelar
+   * deja la conexión abierta. Por eso van juntos.
+   */
+  const plazo = new Promise((_, rechazar) => {
+    reloj = setTimeout(() => {
+      ac.abort();
+      const e = new Error('tiempo-agotado');
+      e.name = 'AbortError';
+      rechazar(e);
+    }, ms);
+  });
+  try{
+    return await Promise.race([
+      fetch(url, {...opciones, signal: ac.signal}),
+      plazo
+    ]);
+  }finally{
+    // Siempre, también cuando la petición va bien: un temporizador vivo por
+    // cada ficha abierta se acumula sin que se note.
+    clearTimeout(reloj);
+  }
+}
+
+/*
+ * Un plazo agotado NO es una caída de red, y hay que distinguirlos.
+ *
+ * Con `AbortError` la conexión se aceptó y el servidor no contestó a tiempo:
+ * hay internet, lo que hay es un servidor lento. Marcarlo como "sin conexión"
+ * mandaría a la persona a revisar su WiFi, que es justo donde no está el
+ * problema.
+ *
+ * `redFallo()` ya lo respetaba por casualidad —comprueba `instanceof
+ * TypeError` y un AbortError es un DOMException—, pero eso es demasiado
+ * frágil para dejarlo implícito.
+ */
+function esTiempoAgotado(e){
+  return !!e && (e.name === 'AbortError' || e.message === 'tiempo-agotado');
+}
+
 async function fetchPC(n){
   try{
-    const r=await fetch(`https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/${encodeURIComponent(n)}/property/MolecularFormula,MolecularWeight,IUPACName,CanonicalSMILES/JSON`);
+    const r=await fetchConTimeout(`https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/${encodeURIComponent(n)}/property/MolecularFormula,MolecularWeight,IUPACName,CanonicalSMILES/JSON`);
     redOk();                       // hubo respuesta: hay internet
     if(!r.ok) return null;
     return (await r.json()).PropertyTable?.Properties?.[0]||null;
-  }catch(e){redFallo(e);return null;}
+  }catch(e){
+    // Un plazo agotado no dice nada sobre si hay red: no se marca.
+    if(!esTiempoAgotado(e)) redFallo(e);
+    return null;
+  }
 }
 
 /*
@@ -2468,8 +2819,9 @@ window.addEventListener('offline', () => marcarRed(false));
 async function fetch3DSDF(n){
   let r;
   try{
-    r = await fetch(`https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/${encodeURIComponent(n)}/SDF?record_type=3d`);
+    r = await fetchConTimeout(`https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/${encodeURIComponent(n)}/SDF?record_type=3d`);
   }catch(e){
+    if(esTiempoAgotado(e)) throw new Error('tiempo-agotado');
     redFallo(e);
     throw new Error('sin-red');
   }
@@ -2483,8 +2835,12 @@ const pcPage=(n)=>`https://pubchem.ncbi.nlm.nih.gov/compound/${encodeURIComponen
 
 async function fetchImg2DBase64(n){
   let r;
-  try{ r = await fetch(pcImg(n)); }
-  catch(e){ redFallo(e); throw new Error('sin-red'); }
+  try{ r = await fetchConTimeout(pcImg(n)); }
+  catch(e){
+    if(esTiempoAgotado(e)) throw new Error('tiempo-agotado');
+    redFallo(e);
+    throw new Error('sin-red');
+  }
   redOk();
   if(!r.ok) throw new Error('Sin imagen 2D');
   return await blobToDataURL(await r.blob());
@@ -2496,20 +2852,27 @@ async function obtenerPubChemMolecula(mol){
   if(enCache) return {...enCache, desdeCache:true};
 
   const nombre = mol.nombre_en || mol.nombre || key;
-  const [propiedades, sdfRes, imgRes] = await Promise.allSettled([
+  /*
+   * El SDF ya no se pide aquí: lo pide cargar3D() por su cuenta y en
+   * paralelo. Si se pidiera en los dos sitios serían dos descargas idénticas
+   * del mismo archivo a un servidor que ya nos estrangula.
+   */
+  const [propiedades, imgRes] = await Promise.allSettled([
     fetchPC(nombre),
-    fetch3DSDF(nombre),
     fetchImg2DBase64(nombre)
   ]);
 
   const data = {
     imagen_2d:   imgRes.status === 'fulfilled' ? imgRes.value : null,
-    sdf:         sdfRes.status === 'fulfilled' ? sdfRes.value : null,
     propiedades: propiedades.status === 'fulfilled' ? propiedades.value : null
   };
 
-  if(data.imagen_2d || data.sdf || data.propiedades) guardarPubChemCache(key, data);
-  return {...data, desdeCache:false};
+  if(data.imagen_2d || data.propiedades){
+    // Fusionado, no reemplazado: cargar3D() escribe el sdf en esta misma
+    // entrada y en paralelo. Reemplazar borraría lo que acabe de guardar.
+    guardarPubChemCache(key, {...(obtenerPubChemCache(key)||{}), ...data});
+  }
+  return {...data, sdf:(obtenerPubChemCache(key)||{}).sdf || null, desdeCache:false};
 }
 
 document.getElementById('btn-cache').addEventListener('click',()=>{
@@ -2780,6 +3143,432 @@ function pintarMetricaGNN(idElemento, metrica, campos, nivel){
   el.style.display = '';
 }
 
+/*
+ * ── Qué NO dice un cero en Tox21 ────────────────────────────────────
+ *
+ * "0 de 12 ensayos por encima de 0,5" se lee como "inofensiva". El cloruro de
+ * vinilo da cero, y es carcinógeno humano confirmado (IARC grupo 1). El modelo
+ * no se equivoca: el cloruro de vinilo es un procarcinógeno, el CYP2E1 hepático
+ * lo convierte en óxido de cloroetileno y es ese metabolito el que se une al
+ * ADN. La molécula que entra al modelo es inocua hasta que el hígado la
+ * transforma, y los 12 ensayos son células sueltas durante 48 horas: ahí no
+ * hay hígado.
+ *
+ * Ya había un aviso del sesgo AL ALZA del máximo de doce. Faltaba el
+ * simétrico, que es el peligroso: presentar la ausencia de señal en doce vías
+ * concretas como si fuera un resultado de seguridad.
+ *
+ * Redactado para alguien de doce años, que es quien va a leerlo en la feria.
+ */
+const TOX_AVISO_CERO =
+  '⚠ Un cero no significa «inofensiva»: hay venenos conocidos que también dan cero aquí.';
+
+function toxExplicacionCero(n){
+  return `Qué miran estos ${n} ensayos, y qué no pueden ver.\n\n`
+    + `Son ${n} pruebas hechas sobre células humanas en un plato de laboratorio, `
+    + 'no sobre un cuerpo entero. Miran dos cosas: los receptores nucleares, que '
+    + 'son los interruptores que encienden y apagan los genes, y las vías de '
+    + 'estrés celular, que son las alarmas internas de la célula. Las células '
+    + 'pasan 48 horas en contacto con la sustancia, y ya está.\n\n'
+    + 'Por eso hay peligros que este panel no puede ver. El más importante: '
+    + 'algunas sustancias entran al cuerpo siendo inofensivas y es el hígado el '
+    + 'que las convierte en otra cosa, y es esa otra cosa la que hace el daño. '
+    + 'Aquí no hay hígado. Una sustancia de la que se sabe que produce cáncer '
+    + `puede dar cero en los ${n} ensayos sin que el modelo se haya equivocado.\n\n`
+    + `Cero quiere decir «ninguna de estas ${n} alarmas se ha encendido». No `
+    + 'quiere decir «esta molécula es segura».';
+}
+
+/*
+ * ── Qué significa cruzar la barrera hematoencefálica ────────────────
+ *
+ * Se compone aquí y no se toma del `mensaje_nino` del backend ("¡Esta molécula
+ * puede llegar al cerebro!") porque ese entusiasmo es justo el problema: en un
+ * catálogo de 250 contaminantes, cruzar la barrera es la mala noticia.
+ */
+/*
+ * La descripción explica el veredicto de la etiqueta. No emite otro.
+ *
+ * Cuando la etiqueta afirma una dirección, la frase la desarrolla. Cuando la
+ * etiqueta no se decide —la banda central— la frase NO puede decidir por
+ * ella: el dicamba a 0,60 tenía arriba "No concluyente" y debajo "se inclina
+ * a que sí atraviesa", que son dos veredictos opuestos en cuatro centímetros
+ * de pantalla.
+ *
+ * Pero tampoco se esconde la inclinación, que sería el error contrario: un
+ * 60 % SÍ se inclina, y callarlo es tan falso como afirmarlo. Lo que hace la
+ * frase en ese caso es decir hacia dónde y por qué eso no basta — que 60 %
+ * está demasiado cerca de la mitad— en vez de rematar con una conclusión.
+ *
+ * Quién decide cuál de los dos casos es: veredictoTieneDireccion(), que se lo
+ * pregunta a la tabla de vocabulario. Ver FUGA ENTRE CASILLAS en
+ * pinchdraw-quimica.js.
+ */
+function bbbpTextoSignificado(prob, conDireccion){
+  const haciaSi = prob >= 0.5;
+  const pct = Math.round(prob * 100);
+  const cabecera = conDireccion
+    ? (haciaSi
+        ? 'El modelo se inclina a que sí atraviesa la barrera que protege el cerebro. '
+        : 'El modelo se inclina a que no atraviesa la barrera que protege el cerebro. ')
+    : `Ese ${pct} % se inclina hacia el ${haciaSi ? 'sí' : 'no'}, pero está demasiado `
+      + 'cerca de la mitad para afirmar nada, y por eso la etiqueta no se moja. ';
+  return cabecera
+    + 'Atravesar la barrera no es bueno ni malo por sí solo: en un medicamento '
+    + 'para el cerebro es justo lo que se busca; en un pesticida o un '
+    + 'contaminante es la mala noticia.';
+}
+
+/*
+ * Si el motor de química no está cargado no se puede preguntar a la tabla.
+ * Ese camino es el del backend de desarrollo, cuyo vocabulario siempre afirma
+ * dirección, así que se responde que sí. En las dos salidas que se publican
+ * —sitio-publico y escritorio— el motor va dentro y esto nunca se usa.
+ */
+function gnnVeredictoConDireccion(prob, rocAuc){
+  const q = (typeof PinchDrawQuimica !== 'undefined') ? PinchDrawQuimica : null;
+  if(!q || typeof q.veredictoTieneDireccion !== 'function') return true;
+  return q.veredictoTieneDireccion(prob, rocAuc);
+}
+
+/*
+ * ══ PANEL NORMATIVO: el primer dato verificado de la app ═════════════
+ *
+ * Todo lo demás que se muestra aquí es una estimación. Ése fue el problema
+ * del cloruro de vinilo: «0 de 12 ensayos» leído como inocuidad, sin nada
+ * verificado al lado que lo contradijera.
+ *
+ * Un límite del ECA es de otra naturaleza. «El decreto peruano permite hasta
+ * 0,002 mg/L de lindano en agua potabilizable» no se estima: se cita, con
+ * número de decreto y fecha de publicación. Por eso este bloque se pinta
+ * distinto, y ese contraste no es maquetación: es el contenido. Arriba,
+ * «no sustituyen determinaciones experimentales»; aquí, «D.S. N°
+ * 004-2017-MINAM, vigente».
+ *
+ * Reglas que no se pueden relajar:
+ *
+ *   · Sólo aparece cuando hay dato. Nada de secciones vacías ni de «sin
+ *     datos»: una sección que dice «sin datos» invita a leer su ausencia
+ *     como una ausencia de riesgo, que es exactamente el fallo de Tox21.
+ *
+ *   · Las unidades son las del decreto. mg/L en las categorías 1 y 4, µg/L
+ *     en la 3. NO se convierten a una unidad común: cambiar las unidades en
+ *     silencio es reescribir la norma.
+ *
+ *   · Lo que la ley limita como suma se muestra como suma. El p,p'-DDD y el
+ *     p,p'-DDE no tienen cifra propia en el decreto y aquí tampoco la tienen.
+ */
+
+// Índice por CID, con el catálogo al lado para poder nombrar a las moléculas
+// con las que una comparte un límite conjunto.
+function normaDatos(){
+  return (typeof window !== 'undefined' && window.PINCHDRAW_NORMATIVA) || null;
+}
+
+function normaNombreDeCid(cid){
+  const m = (window.PINCHDRAW_MOLECULES_250 || []).find(x => String(x.cid) === String(cid));
+  return m ? (m.nombre_es || m.nombre) : ('CID ' + cid);
+}
+
+/*
+ * Un límite puede ser 0,0000019. String() pasa a notación exponencial por
+ * debajo de 1e-7 y en pantalla saldría "1.9e-7", que no se parece a lo que
+ * dice el decreto. Se formatea con decimales explícitos y coma decimal.
+ */
+function normaNumero(v){
+  if(v === null || v === undefined || !isFinite(v)) return null;
+  let s = String(v);
+  if(/e/i.test(s)){
+    const dec = Math.max(0, -Math.floor(Math.log10(Math.abs(v))) + 6);
+    s = Number(v).toFixed(dec).replace(/0+$/, '');
+  }
+  return s.replace('.', ',');
+}
+
+// Las categorías del decreto, con sus subcategorías y su unidad. El orden es
+// el del decreto, no el de lo que resulte más vistoso.
+const ECA_CATEGORIAS = [
+  { clave: 'cat1_a', unidad: 'mg/L',
+    titulo: 'Categoría 1 · agua que se va a potabilizar',
+    cols: [['a1', 'A1 · potabilizable con desinfección'],
+           ['a2', 'A2 · con tratamiento convencional'],
+           ['a3', 'A3 · con tratamiento avanzado']] },
+  { clave: 'cat3', unidad: 'µg/L',
+    titulo: 'Categoría 3 · riego y bebida de animales',
+    cols: [['d1', 'D1 · riego de vegetales'],
+           ['d2', 'D2 · bebida de animales']] },
+  { clave: 'cat4', unidad: 'mg/L',
+    titulo: 'Categoría 4 · conservación del ambiente acuático',
+    cols: [['e1', 'E1 · lagunas y lagos'],
+           ['e2_costa_sierra', 'E2 · ríos de costa y sierra'],
+           ['e2_selva', 'E2 · ríos de selva'],
+           ['e3_estuarios', 'E3 · estuarios'],
+           ['e3_marinos', 'E3 · marinos']] }
+];
+
+/*
+ * Para el modo niño hace falta UNA cifra, y la que se entiende sin explicar
+ * nada es la del agua que se va a beber. Pero no todas las sustancias tienen
+ * límite en la Categoría 1: el antraceno y el fluoranteno sólo lo tienen en
+ * la 4, el paratión en la 3 y la 4. En esos casos se baja al siguiente
+ * disponible y se dice de qué agua se trata, en vez de callar el dato o de
+ * fingir que es el de consumo humano.
+ */
+const ECA_PRIORIDAD = [
+  ['cat1_a', 'a1', 'mg/L', 'en un agua que se va a convertir en agua potable'],
+  ['cat3', 'd1', 'µg/L', 'en el agua con la que se riegan los cultivos'],
+  ['cat4', 'e1', 'mg/L', 'en las lagunas y los lagos, para proteger a los seres vivos que viven en ellos'],
+  ['cat3', 'd2', 'µg/L', 'en el agua que beben los animales de granja'],
+  ['cat4', 'e3_marinos', 'mg/L', 'en el mar, para proteger a los seres vivos que viven en él']
+];
+
+function ecaPrimerValor(limites){
+  for(const [cat, col, unidad, frase] of ECA_PRIORIDAD){
+    const bloque = limites && limites[cat];
+    if(bloque && bloque[col] !== null && bloque[col] !== undefined){
+      return { valor: bloque[col], unidad, frase };
+    }
+  }
+  return null;
+}
+
+function normaTablaEca(limites){
+  let html = '';
+  ECA_CATEGORIAS.forEach(cat => {
+    const b = limites && limites[cat.clave];
+    if(!b) return;
+    // Una categoría en la que todo son ** no aporta nada: se omite entera.
+    if(!cat.cols.some(([k]) => b[k] !== null && b[k] !== undefined)) return;
+    html += `<div class="norma-grupo">${escaparNorma(cat.titulo)} `
+      + `<b>(${escaparNorma(cat.unidad)})</b></div>`
+      + '<table class="norma-tabla"><tbody>';
+    cat.cols.forEach(([k, etiqueta]) => {
+      const n = normaNumero(b[k]);
+      html += `<tr><td>${escaparNorma(etiqueta)}</td>`
+        + (n === null
+            ? '<td class="num na">no aplica</td>'
+            : `<td class="num">${escaparNorma(n)}</td>`)
+        + '</tr>';
+    });
+    html += '</tbody></table>';
+  });
+  return html;
+}
+
+// El panel se pinta con innerHTML; todo lo que venga de los datos pasa por aquí.
+function escaparNorma(t){
+  return String(t === null || t === undefined ? '' : t)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function pintarNormaEca(mol){
+  const el = document.getElementById('norma-eca');
+  if(!el) return 0;
+  const N = normaDatos();
+  const fichas = (N && mol && mol.cid) ? N.eca.porCid[String(mol.cid)] : null;
+  if(!fichas || !fichas.length){ el.style.display = 'none'; el.innerHTML = ''; return 0; }
+
+  const propias = fichas.filter(f => f.tipo === 'individual' || f.tipo === 'grupo');
+  const conjuntas = fichas.filter(f => f.tipo === 'suma');
+  const pro = esModoPro();
+  const nombreMol = mol.nombre_es || mol.nombre;
+
+  let cuerpo = '';
+
+  if(propias.length){
+    if(pro){
+      propias.forEach(f => { cuerpo += normaTablaEca(f.limites); });
+    } else {
+      const v = ecaPrimerValor(propias[0].limites);
+      if(v){
+        cuerpo += `<div class="norma-cifra">${escaparNorma(normaNumero(v.valor))} `
+          + `${escaparNorma(v.unidad)}</div>`
+          + `<div class="norma-txt">Es todo lo que la ley peruana deja que haya de `
+          + `<b>${escaparNorma(nombreMol.toLowerCase())}</b> ${escaparNorma(v.frase)}. `
+          + 'Más que eso, y esa agua incumple la norma.</div>';
+      }
+    }
+  } else if(conjuntas.length){
+    /*
+     * Ni en modo niño ni en profesional se inventa una cifra propia: la norma
+     * limita la suma de dos moléculas y eso es lo que se dice. Poner aquí
+     * "0,000001 mg/L" a secas sería atribuir a esta molécula un límite que el
+     * decreto no le pone.
+     */
+    const f = conjuntas[0];
+    const otras = f.con.map(normaNombreDeCid);
+    const v = ecaPrimerValor(f.limites);
+    cuerpo += '<div class="norma-txt">El decreto <b>no limita esta molécula por '
+      + 'separado</b>: pone un tope a la <b>suma</b> de '
+      + escaparNorma([nombreMol].concat(otras).join(' y ')) + '.</div>';
+    if(v && !pro){
+      cuerpo += `<div class="norma-cifra">${escaparNorma(normaNumero(v.valor))} `
+        + `${escaparNorma(v.unidad)}</div>`
+        + `<div class="norma-txt">es el máximo para las dos juntas `
+        + `${escaparNorma(v.frase)}.</div>`;
+    }
+    if(pro) cuerpo += normaTablaEca(f.limites);
+  }
+
+  // Un límite conjunto que se suma a los propios (aldrín + dieldrín,
+  // heptacloro + epóxido): no sustituye al individual, se añade.
+  if(propias.length && conjuntas.length){
+    conjuntas.forEach(f => {
+      const v = ecaPrimerValor(f.limites);
+      cuerpo += '<div class="norma-aviso">Además, el decreto fija un límite '
+        + `<b>conjunto</b> para ${escaparNorma(f.nombre)}`
+        + (v ? `: ${escaparNorma(normaNumero(v.valor))} ${escaparNorma(v.unidad)} `
+             + `${escaparNorma(v.frase)}` : '')
+        + ', que se aplica a la suma de las dos y no a cada una.</div>';
+    });
+  }
+
+  // El decreto puede llamarla de otra forma. Decirlo evita que alguien busque
+  // el nombre del catálogo en el PDF y concluya que no está.
+  const nombreDecreto = (propias[0] || conjuntas[0]).nombre;
+  if(nombreDecreto && nombreDecreto.toLowerCase() !== String(nombreMol).toLowerCase()
+     && !/suma/i.test(nombreDecreto)){
+    cuerpo += `<div class="norma-txt" style="margin-top:5px">En el decreto figura como `
+      + `«${escaparNorma(nombreDecreto)}».</div>`;
+  }
+  // Y si el emparejamiento tiene letra pequeña, va entera en modo profesional.
+  const conNota = fichas.find(f => f.nota);
+  if(pro && conNota){
+    cuerpo += `<div class="norma-aviso">${escaparNorma(conNota.nota)}</div>`;
+  }
+
+  if(!cuerpo){ el.style.display = 'none'; el.innerHTML = ''; return 0; }
+
+  const f = N.eca.fuente;
+  el.innerHTML =
+    '<div class="norma-cab"><span class="norma-titulo">⚖ LÍMITE LEGAL EN AGUA</span>'
+    + '<span class="norma-sello">dato verificado</span></div>'
+    + cuerpo
+    + `<div class="norma-fuente">${escaparNorma(f.norma)} (Perú), publicado el `
+    + `${escaparNorma(fechaNorma(f.publicacion))}. Vigente. No es una estimación: `
+    + 'es la norma.</div>';
+  el.style.display = '';
+  return 1;
+}
+
+// "2017-06-07" -> "7 de junio de 2017"
+const MESES_NORMA = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio',
+  'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+function fechaNorma(iso){
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+  if(!m) return String(iso || '');
+  return `${Number(m[3])} de ${MESES_NORMA[Number(m[2]) - 1]} de ${m[1]}`;
+}
+
+/*
+ * CosIng: sólo los anexos III a VI.
+ *
+ * Los ~90 del Anexo II se descartaron al generar normativa.js y no deben
+ * volver. El Anexo II prohíbe unas 2.400 sustancias y barre familias enteras
+ * —pesticidas, COP, HAP, PFAS—, así que «prohibida en cosméticos» es cierto
+ * para media app y no informa de nada: nadie iba a echarle aldrina a una
+ * crema. Es el mismo fallo que el «0 de 12 ensayos», un dato verdadero que
+ * induce una conclusión falsa.
+ *
+ * Los anexos III a VI sí dicen algo: ahí la sustancia se evaluó para uso
+ * cosmético y la norma fija concentración y condición.
+ */
+const COSING_QUE_ES = {
+  'Anexo III': 'uso restringido',
+  'Anexo IV': 'colorante permitido',
+  'Anexo V': 'conservante permitido',
+  'Anexo VI': 'filtro solar permitido'
+};
+
+function pintarNormaCosing(mol){
+  const el = document.getElementById('norma-cosing');
+  if(!el) return 0;
+  const N = normaDatos();
+  const filas = (N && mol && mol.cid) ? N.cosing.porCid[String(mol.cid)] : null;
+  if(!filas || !filas.length){ el.style.display = 'none'; el.innerHTML = ''; return 0; }
+
+  const pro = esModoPro();
+  let cuerpo = '';
+  filas.forEach(f => {
+    const que = COSING_QUE_ES[f.anexo] || 'regulado';
+    cuerpo += `<div class="norma-txt" style="margin-top:4px"><b>${escaparNorma(f.anexo)}`
+      + (pro && f.ref ? `, entrada ${escaparNorma(f.ref)}` : '')
+      + `</b> — ${escaparNorma(que)}`;
+    if(f.restriccion){
+      cuerpo += `. Máximo <b>${escaparNorma(pro ? f.restriccion
+        : f.restriccion.slice(0, 60) + (f.restriccion.length > 60 ? '…' : ''))}</b>`;
+    }
+    cuerpo += '.</div>';
+    if(pro && f.inci) cuerpo += `<div class="norma-grupo">nombre INCI: ${escaparNorma(f.inci)}</div>`;
+  });
+
+  const f = N.cosing.fuente;
+  el.innerHTML =
+    '<div class="norma-cab"><span class="norma-titulo">⚖ EN COSMÉTICOS (UE)</span>'
+    + '<span class="norma-sello">dato verificado</span></div>'
+    + cuerpo
+    + `<div class="norma-fuente">${escaparNorma(f.reglamento)} · base CosIng de la `
+    + `Comisión Europea, actualizada el ${escaparNorma(fechaNorma(f.actualizado))}. `
+    + 'No es una estimación: es la norma.</div>';
+  el.style.display = '';
+  return 1;
+}
+
+/*
+ * ── Dos moléculas, un solo grafo ──────────────────────────────────────
+ *
+ * Salió al añadir el endrin: su SMILES plano es IDÉNTICO al de la dieldrina.
+ * No es un error de los datos, es química — el endrin es el estereoisómero de
+ * la dieldrina, los mismos átomos unidos igual y colocados al revés en el
+ * espacio. Y el featurizador de la GNN son 37 características por átomo que
+ * NO incluyen quiralidad, así que las dos moléculas entran al modelo como el
+ * mismo grafo y salen con las tres estimaciones exactamente iguales.
+ *
+ * Presentar dos fichas distintas con números idénticos y sin explicación es
+ * la misma familia de fallo que el «0 de 12 ensayos»: lo que se ve induce una
+ * conclusión falsa —aquí, que el modelo ha evaluado esta molécula— cuando lo
+ * que ha evaluado es una forma que comparte con otra.
+ *
+ * Y da la casualidad de que es la mejor demostración de para qué sirve el
+ * bloque de abajo: el modelo no las distingue y el decreto sí, con límites
+ * distintos para cada una. Estimación contra norma, en la misma pantalla.
+ */
+function pintarAvisoIsomero(mol){
+  const el = document.getElementById('gnn-isomero');
+  if(!el) return 0;
+  const gemelas = (mol && mol.smiles)
+    ? (window.PINCHDRAW_MOLECULES_250 || []).filter(
+        x => x.smiles === mol.smiles && String(x.cid) !== String(mol.cid))
+    : [];
+  if(!gemelas.length){ el.style.display = 'none'; el.textContent = ''; el.title = ''; return 0; }
+
+  const nombres = gemelas.map(x => x.nombre_es || x.nombre).join(' y ');
+  el.textContent = `⚠ Las estimaciones de abajo son las mismas que las de ${nombres}.`;
+  el.title = `${nombres} tiene exactamente los mismos átomos unidos de la misma `
+    + 'forma: lo único que cambia es cómo están orientados en el espacio, que es lo '
+    + 'que distingue a dos estereoisómeros.\n\n'
+    + 'Los modelos de esta app miran qué átomos hay y cómo están conectados, pero no '
+    + 'esa orientación. Para ellos las dos moléculas son la misma, así que les dan las '
+    + 'mismas tres estimaciones. No es que hayan estudiado ésta: es que no pueden '
+    + 'separarla de la otra.\n\n'
+    + 'El límite legal de aquí abajo sí las distingue, porque no lo calcula un modelo: '
+    + 'lo escribió el decreto para cada una por separado.';
+  el.style.display = '';
+  return 1;
+}
+
+// Lo último pintado, para repintarlo al cambiar de modo igual que el GNN.
+let ultimaMolNormativa = null;
+
+function pintarNormativa(mol){
+  ultimaMolNormativa = mol || null;
+  const a = pintarNormaEca(mol);
+  const b = pintarNormaCosing(mol);
+  const c = pintarAvisoIsomero(mol);
+  return a + b + c;
+}
+
 // Lo último pintado, para poder repintarlo al cambiar de modo.
 let ultimoGNN = null;
 
@@ -2827,13 +3616,43 @@ function mostrarResultadosGNN(props, metricas){
     const bar = document.getElementById('gnn-logs-bar');
     bar.style.width      = pct + '%';
     /*
-     * El color no puede afirmar una zona que la banda de error no respeta.
-     * Antes se pintaba verde intenso un logS de -0,9 aunque su banda llegara
-     * hasta -2: el relleno decía "soluble, seguro" mientras la banda de al lado
-     * decía lo contrario. Cuando la banda cruza zonas se usa un degradado entre
-     * los colores de los extremos, que es exactamente lo que ocurre.
+     * ── La escala de solubilidad dejó de opinar ──────────────────────
+     *
+     * Era verde → ámbar → rojo, y eso no es una escala: es una rampa
+     * DIVERGENTE con valencia. Dos extremos enfrentados y un centro neutro
+     * son la forma universal de decir "este lado es bueno y este malo". El
+     * logS no es eso. Es una magnitud secuencial: un eje que va de menos a
+     * más y en el que ningún punto es una buena o una mala noticia.
+     *
+     * Y en ESTE catálogo la afirmación era falsa por los dos lados a la vez.
+     * Lo dicen sus propias fichas:
+     *
+     *   · atrazina, soluble — "aparece en los acuíferos años después de
+     *     dejar de usarse";
+     *   · bifentrina, insoluble — "se adhiere con fuerza al suelo y a los
+     *     sedimentos, así que se acumula en el fondo de ríos y embalses,
+     *     donde viven los invertebrados de los que come el pez".
+     *
+     * Muy soluble viaja con el agua hasta el pozo. Muy insoluble se queda en
+     * el sedimento y sube por la cadena alimentaria. Para un contaminante no
+     * hay extremo bueno, así que la escala no puede tener un extremo verde.
+     *
+     * Ahora es una rampa SECUENCIAL de un solo tono: el mismo color con más
+     * intensidad conforme sube el logS. La posición dice cuánto; el color no
+     * dice nada más.
+     *
+     * NO SE RESTAURE el verde↔rojo por parecer más vistoso. Lo vistoso ahí
+     * era una afirmación, y era falsa.
+     *
+     * Se sigue usando un degradado cuando la banda de error cruza dos
+     * tramos, por la razón de siempre: el color no puede afirmar un tramo
+     * que la banda no respeta. Con una rampa monótona además se lee mejor
+     * que antes, porque un degradado entre dos pasos contiguos de un mismo
+     * tono se ve como lo que es —un rango— y no como dos juicios peleándose.
      */
-    const zonaColor = v => v >= -1 ? '#06d6a0' : v >= -3 ? '#ffbe0b' : '#ef233c';
+    const zonaColor = v => v >= -1 ? 'var(--p-sol-alto)'
+                         : v >= -3 ? 'var(--p-sol-medio)'
+                         : 'var(--p-sol-bajo)';
     const conBanda = isFinite(rmse) && rmse > 0;
     const colorAlto = zonaColor(conBanda ? logs + rmse : logs);
     const colorBajo = zonaColor(conBanda ? logs - rmse : logs);
@@ -2873,11 +3692,28 @@ function mostrarResultadosGNN(props, metricas){
     const ensayo = tox.ensayo_mas_alto;
     tag.textContent = (ensayo ? ensayo + ' · ' : '')
       + (tox.prediccion || '—') + '  ' + pct + '%';
-    tag.className   = 'gnn-pred-tag ' + (probTox > 0.6 ? 'bad' : probTox > 0.35 ? 'warn' : 'ok');
+    /*
+     * ── Aquí abajo no hay verde ──────────────────────────────────────
+     *
+     * El verde no codificaba toxicidad: codificaba cuánta señal encontró el
+     * modelo en doce ensayos que ni siquiera detectan procarcinógenos. Y esa
+     * escala no es simétrica: un positivo en Tox21 significa algo, un
+     * negativo casi nada. Pintar de verde la punta baja trataba como
+     * equivalentes dos cosas que no lo son, y dejaba al cloruro de vinilo en
+     * verde justo encima del aviso ámbar que dice que un cero no significa
+     * inofensiva — la app discutiendo consigo misma, y el color se ve antes
+     * que el texto.
+     *
+     * Regla del panel: rojo o ámbar cuando hay señal, neutro cuando no la
+     * hay. El verde queda reservado para datos verificados.
+     */
+    tag.className   = 'gnn-pred-tag ' + (probTox > 0.6 ? 'bad' : probTox > 0.35 ? 'warn' : 'neutro');
 
     const bar = document.getElementById('gnn-tox-bar');
     bar.style.width      = pct + '%';
-    bar.style.background = probTox > 0.6 ? '#ef233c' : probTox > 0.35 ? '#ffbe0b' : '#06d6a0';
+    bar.style.background = probTox > 0.6 ? '#ef233c'
+                         : probTox > 0.35 ? '#ffbe0b'
+                         : 'var(--p-barra-neutra)';
 
     const n     = tox.n_ensayos !== undefined ? tox.n_ensayos
                 : Object.keys(tox.ensayos || {}).length;
@@ -2896,6 +3732,18 @@ function mostrarResultadosGNN(props, metricas){
         + 'completo en el modo profesional en vez de resumirlo en un solo número.'
       : '';
 
+    /*
+     * El aviso del cero sólo aparece cuando el cero está. Con 3 de 12 por
+     * encima del umbral nadie va a leer "inofensiva", y un aviso que sale
+     * siempre deja de leerse. El del sesgo al alza, en cambio, se queda:
+     * vale para cualquier recuento.
+     */
+    const avisoCero = document.getElementById('gnn-tox-cero');
+    const esCero = (sobre === 0 && !!n);
+    avisoCero.textContent = esCero ? TOX_AVISO_CERO : '';
+    avisoCero.title       = esCero ? toxExplicacionCero(n) : '';
+    avisoCero.style.display = esCero ? '' : 'none';
+
     pintarTablaTox(tox);
   }
 
@@ -2908,13 +3756,67 @@ function mostrarResultadosGNN(props, metricas){
     const pct  = Math.round(prob * 100);
     const tag  = document.getElementById('gnn-bbb-tag');
     tag.textContent = (bbb.prediccion || '—') + '  ' + pct + '%';
-    tag.className   = 'gnn-pred-tag ' + (prob > 0.5 ? 'ok' : 'warn');
+    /*
+     * ── El color deja de opinar ──────────────────────────────────────
+     *
+     * Antes: verde si cruza la barrera, ámbar si no. Esa semántica viene del
+     * mundo del medicamento, donde llegar al cerebro es el objetivo. Este
+     * catálogo son 250 contaminantes —pesticidas, PFAS, colorantes— y que un
+     * pesticida cruce la barrera hematoencefálica es exactamente la mala
+     * noticia: la app la pintaba de verde.
+     *
+     * Cruzar no es bueno ni malo en abstracto; depende de qué sea la molécula,
+     * y el modelo no lo sabe. Así que el color es el mismo en los dos casos
+     * —azul de dato— y quien dice qué significa es el texto.
+     */
+    tag.className   = 'gnn-pred-tag neutro';
 
     const bar = document.getElementById('gnn-bbb-bar');
     bar.style.width      = pct + '%';
-    bar.style.background = prob > 0.5 ? '#06d6a0' : '#ffbe0b';
+    bar.style.background = 'var(--p-barra-neutra)';
 
-    document.getElementById('gnn-bbb-detail').textContent = bbb.mensaje_nino || bbb.interpretacion || '';
+    /*
+     * La métrica se lee ANTES que la descripción: desde que la frase tiene
+     * que saber si la etiqueta se ha decidido o no, depende del ROC-AUC igual
+     * que el aviso de fiabilidad. Un solo sitio de donde sale, y los dos
+     * beben de él.
+     */
+    const metricaBbb = gnnMetricaDe(metricas, ['bbbp']) || {};
+
+    document.getElementById('gnn-bbb-detail').textContent =
+      bbbpTextoSignificado(prob, gnnVeredictoConDireccion(prob, metricaBbb.roc_auc));
+
+    /*
+     * ── La fiabilidad, donde se lee el número ────────────────────────
+     *
+     * El ROC-AUC estaba sólo en la línea de métricas, bajo la barra. Nadie lee
+     * la letra pequeña: se lee "17 %" y se cierra la ficha. Con un ROC-AUC de
+     * 0,64 —donde 0,50 es tirar una moneda— ese 17 % es un indicio, no una
+     * medida, y hay que decirlo pegado al porcentaje y en los dos modos.
+     *
+     * No se esconde la cifra: se acompaña. Y todo sale del config del modelo,
+     * la cifra y también la decisión de avisar o no, con la misma tabla de
+     * niveles que calibra el vocabulario. Si un reentrenamiento sube el
+     * ROC-AUC, el aviso se suaviza solo: no hay ningún 0,64 escrito a mano que
+     * alguien tenga que acordarse de venir a cambiar.
+     */
+    const cifraRoc = gnnNumero(metricaBbb.roc_auc);
+    const nivelBbb = gnnNivelModelo(metricaBbb.roc_auc);
+    // Sin ROC-AUC no se puede saber cuánto acierta: se avisa igual, que es lo
+    // conservador, exactamente como hace nivelDiscriminacion().
+    const flojo = !nivelBbb || nivelBbb.id === 'muy_baja';
+
+    const fiab = document.getElementById('gnn-bbb-fiabilidad');
+    fiab.textContent = (flojo ? '⚠ ' : '')
+      + (cifraRoc !== null
+          ? `Acierto del modelo: ROC-AUC ${cifraRoc} de 1,00, y 0,50 es tirar una moneda.`
+          : 'No consta cuánto acierta este modelo.')
+      + (flojo ? ` Ese ${pct} % es un indicio, no una medida.` : '');
+    fiab.className = 'gnn-salvedad' + (flojo ? '' : ' neutra');
+    fiab.title = (nivelBbb && nivelBbb.descripcion)
+      || 'Sin ROC-AUC no hay forma de saber cuánto acierta el modelo, así que su '
+       + 'salida se trata como un indicio.';
+    fiab.style.display = '';
   }
 
   // ── Métricas de los tres modelos ─────────────────
@@ -2966,14 +3868,61 @@ function toggle3dSpin(){
   document.getElementById('d3-spin').classList.toggle('active',spin3d);
 }
 
-async function cargar3D(nombre_en, sdfCache=null){
+/*
+ * Estado del visor 3D. Se escribe en un <span> y no en el div entero porque
+ * ahí dentro vive también el botón de reintentar.
+ */
+function estado3D(texto, conReintento){
+  const caja = document.getElementById('mol-3d-status');
+  const txt  = document.getElementById('mol-3d-status-txt');
+  const btn  = document.getElementById('btn-3d-reintentar');
+  if(txt) txt.textContent = texto;
+  if(btn) btn.hidden = !conReintento;
+  if(caja) caja.style.display = texto ? 'flex' : 'none';
+}
+
+// La molécula que se está mostrando, para que el botón de reintentar sepa cuál
+// volver a pedir sin tener que reabrir la ficha.
+let mol3dActual = null;
+
+/*
+ * El visor 3D ya NO cuelga del `then` de obtenerPubChemMolecula.
+ *
+ * Antes esperaba a que terminaran la imagen 2D y las propiedades, aunque
+ * tiene su propia petición: si la imagen tardaba diez segundos, el 3D tardaba
+ * diez segundos de más sin ningún motivo. Y si aquella promesa no se resolvía,
+ * el 3D no se cargaba nunca.
+ *
+ * La caché la consulta él mismo. Es lo que antes le llegaba en `pc.sdf`, y sin
+ * esto se rompería el funcionamiento sin internet, que sí va.
+ */
+async function cargar3D(mol){
   const container=document.getElementById('mol-3d-viewer');
-  const status   =document.getElementById('mol-3d-status');
-  status.textContent=sdfCache ? 'Cargando estructura 3D desde caché local…' : 'Cargando estructura 3D desde PubChem…';
-  status.style.display='flex';
+  mol3dActual = mol;
+
+  const clave   = mol.smiles;
+  const enCache = obtenerPubChemCache(clave);
+  const sdfCache = (enCache && enCache.sdf) || null;
+  estado3D(sdfCache ? 'Cargando estructura 3D desde caché local…'
+                    : 'Cargando estructura 3D desde PubChem…', false);
+
+  /*
+   * La marca va ANTES de pintar, no después.
+   *
+   * Sin red el visor está en `display:none`, así que su contenedor mide 0x0.
+   * 3Dmol creaba entonces un lienzo de tamaño cero y WebGL protestaba
+   * ("Framebuffer is incomplete: Attachment has zero size") en cada render.
+   * Marcándolo primero, el contenedor ya tiene ancho cuando se dibuja.
+   */
+  const seccion3d = document.getElementById('mol-3d-section');
+  if(seccion3d) seccion3d.classList.toggle('desde-cache', !!sdfCache);
 
   try{
-    const sdf = sdfCache || await fetch3DSDF(nombre_en);
+    const sdf = sdfCache || await fetch3DSDF(mol.nombre_en);
+    // Lo descargado se guarda fusionado con lo que ya hubiera: la ficha 2D
+    // escribe en la misma entrada y en paralelo, y un reemplazo se llevaría
+    // por delante lo del otro.
+    if(!sdfCache && sdf) guardarPubChemCache(clave, {...(enCache||{}), sdf});
 
     // Reutilizar el mismo viewer evita destruir el canvas WebGL y reduce parpadeos.
     if(!viewer3d){
@@ -2992,22 +3941,65 @@ async function cargar3D(nombre_en, sdfCache=null){
     viewer3d.zoomTo();
     viewer3d.spin(spin3d);
     viewer3d.render();
-    status.style.display='none';
+    estado3D('', false);
 
   }catch(e){
-    // Sin red el motivo no es la molécula, y decir lo contrario despista.
-    status.textContent = (e && e.message === 'sin-red')
-      ? '⚠ Sin conexión: la estructura 3D se descarga de PubChem.'
-      : '⚠ Estructura 3D no disponible para esta molécula en PubChem.';
+    /*
+     * Tres motivos distintos y tres mensajes distintos. Antes el de "sin
+     * conexión" se comía también el caso de servidor lento, que es el
+     * frecuente: mandaba a revisar el WiFi cuando el WiFi estaba bien.
+     */
+    if(esTiempoAgotado(e) || (e && e.message === 'tiempo-agotado')){
+      estado3D('⏱ PubChem no responde. Hay conexión, pero el servidor está '
+             + 'tardando demasiado.', true);
+    }else if(e && e.message === 'sin-red'){
+      estado3D('⚠ Sin conexión: la estructura 3D se descarga de PubChem.', false);
+    }else{
+      estado3D('⚠ Estructura 3D no disponible para esta molécula en PubChem.', false);
+    }
+    if(seccion3d) seccion3d.classList.remove('desde-cache');
+    // Sin estructura que enseñar, el visor de la ficha anterior sobra.
+    pararGiro3D();
     console.log('3D error:',e);
   }
 }
 
+document.getElementById('btn-3d-reintentar').addEventListener('click',()=>{
+  if(mol3dActual) cargar3D(mol3dActual);
+});
+
+/*
+ * ── Parar el visor 3D cuando no se ve ───────────────────────────────
+ *
+ * 3Dmol mantiene su propio bucle de animación mientras `spin` está puesto, y
+ * no le importa que su contenedor esté oculto: sigue pintando a la frecuencia
+ * de la pantalla contra un lienzo de tamaño cero.
+ *
+ * Se descubrió midiendo: en la fase de la prueba que abre una ficha sin red y
+ * sin caché salieron 257 errores de consola en cuatro segundos —unos 60 por
+ * segundo, uno por fotograma— del tipo "Framebuffer is incomplete: Attachment
+ * has zero size". El visor de la ficha ANTERIOR seguía girando.
+ *
+ * Pasaba en dos situaciones, y las dos son normales:
+ *   · al cerrar la ficha (el modal sólo se atenúa, no se quita del flujo);
+ *   · al abrir una molécula sin estructura 3D disponible.
+ *
+ * En las dos, la GPU seguía trabajando indefinidamente para nadie.
+ */
+function pararGiro3D(){
+  if(!viewer3d) return;
+  try{ viewer3d.spin(false); }catch(e){ /* el visor ya no está: da igual */ }
+}
+
 const modal=document.getElementById('mol-modal');
-document.getElementById('mol-close').addEventListener('click',()=>modal.classList.add('hidden'));
+document.getElementById('mol-close').addEventListener('click',()=>{
+  modal.classList.add('hidden');
+  pararGiro3D();
+});
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){
     modal.classList.add('hidden');
+    pararGiro3D();
     catalogoModal.classList.add('hidden');
     reaccionModal.classList.add('hidden');
     if(historialPanel) historialPanel.classList.remove('open');
@@ -3047,19 +4039,49 @@ async function mostrarMolecula(mol,conf,alts,opciones={}){
   const img=document.getElementById('mol-img'),fb=document.getElementById('mol-img-fallback');
   img.style.display='none'; fb.style.display='block';
   fb.textContent='Cargando imagen…';
-  img.onerror=()=>{img.style.display='none';fb.style.display='block';fb.textContent='Sin imagen';};
+  let relojImg = null;
+  /*
+   * La imagen 2D también tiene plazo, y por el mismo motivo que las demás.
+   *
+   * Un <img> NO pasa por `fetch`, así que no le sirve el AbortController: si
+   * el servidor acepta la conexión y no contesta, `onload` y `onerror` no
+   * llegan nunca y el hueco se queda en "Cargando imagen…" para siempre. El
+   * plazo es lo único que lo cierra.
+   *
+   * Y el texto no se quita al asignar el `src` sino al cargar de verdad:
+   * antes se ocultaba antes de tiempo y una imagen que no llegaba dejaba un
+   * recuadro vacío sin explicación.
+   */
+  const finImg = (ok) => {
+    clearTimeout(relojImg);
+    img.style.display = ok ? 'block' : 'none';
+    fb.style.display  = ok ? 'none'  : 'block';
+    if(!ok) fb.textContent = 'Sin imagen';
+  };
+  img.onerror=()=>finImg(false);
+  img.onload =()=>finImg(true);
+  /*
+   * El plazo se arma UNA vez, al abrir la ficha, y no en cada intento.
+   *
+   * Hay dos intentos por diseño: primero el base64 que llega por `fetch`, y si
+   * ése falla el mismo PNG como `src` de la etiqueta —que puede funcionar
+   * donde el fetch no, porque un <img> no necesita cabeceras CORS—. Rearmando
+   * el reloj en cada uno, el total era el doble: se medían 20 s hasta el
+   * "Sin imagen" con el servidor colgado, no 10.
+   */
+  relojImg = setTimeout(()=>finImg(false), PUBCHEM_TIMEOUT_MS);
+  const ponerImagen = (src) => { img.src = src; };
+
+  /*
+   * El visor 3D arranca AQUÍ, en paralelo, no dentro del `then` de abajo.
+   * Tiene su propia petición y su propia caché; encadenarlo sólo le hacía
+   * esperar a la imagen 2D y a las propiedades.
+   */
+  cargar3D(mol);
 
   const pubchemPromise = obtenerPubChemMolecula(mol);
   pubchemPromise.then(pc=>{
-    if(pc.imagen_2d){
-      img.src=pc.imagen_2d;
-      img.style.display='block';
-      fb.style.display='none';
-    }else{
-      img.src=pcImg(mol.nombre_en);
-      img.style.display='block';
-      fb.style.display='none';
-    }
+    ponerImagen(pc.imagen_2d || pcImg(mol.nombre_en));
 
     const props = pc.propiedades;
     if(props){
@@ -3069,14 +4091,10 @@ async function mostrarMolecula(mol,conf,alts,opciones={}){
     }else{
       document.getElementById('mol-iupac').textContent='(sin datos en línea)';
     }
-
-    cargar3D(mol.nombre_en, pc.sdf);
   }).catch(e=>{
     console.warn('PubChem no disponible:', e);
-    img.src=pcImg(mol.nombre_en);
-    img.style.display='block'; fb.style.display='none';
+    ponerImagen(pcImg(mol.nombre_en));
     document.getElementById('mol-iupac').textContent='(sin datos en línea)';
-    cargar3D(mol.nombre_en);
   });
 
   const pct=Math.min(100,Math.round(conf));
@@ -3113,7 +4131,16 @@ async function mostrarMolecula(mol,conf,alts,opciones={}){
       .forEach(id=>{const el=document.getElementById(id); if(el) el.style.display='none';});
     offline.style.display='block';
     offline.textContent='Las estimaciones son para moléculas, no para átomos individuales. Aquí se muestran los datos reales del elemento.';
+    // Un elemento suelto no tiene CID de compuesto ni límite del ECA.
+    pintarNormativa(null);
   }else{
+    /*
+     * El dato legal se pinta ANTES de lanzar la predicción y sin esperarla:
+     * no depende de ningún modelo, ya está en normativa.js. Si el motor de
+     * química tardara o fallara, el límite del ECA se ve igual — que es
+     * justamente lo que lo distingue de una estimación.
+     */
+    pintarNormativa(mol);
     // Sin await a propósito: la ficha se muestra ya y las estimaciones
     // entran cuando estén. Quien necesite esperarlas usa gnnListo().
     predecirGNN(mol.smiles);
@@ -3476,9 +4503,124 @@ cargarCatalogoReacciones();
  */
 let p5app=null, appPausada=false;
 
+/*
+ * ══════════════════════════════════════════════════════════════════
+ *  MODO EXTERIOR — la paleta del lienzo
+ * ══════════════════════════════════════════════════════════════════
+ *
+ * El lienzo no se puede pintar con variables CSS: lo dibuja p5 con
+ * `background()`, `stroke()` y un canvas 2D. Así que los colores del dibujo
+ * viven aquí, en un solo objeto, y los del HTML en las variables CSS de
+ * arriba. Son dos listas porque son dos motores de pintura distintos, no
+ * porque haya una copia.
+ *
+ * Lo que cambia en exterior, y por qué:
+ *
+ *   · El FONDO se invierte. Es lo único que hace legible una pantalla al sol.
+ *   · El TRAZO se oscurece Y SE ENGORDA. Lo segundo importa tanto como lo
+ *     primero: una línea de 2,5 px al sol desaparece aunque sea negra.
+ *   · El VÍDEO DE FONDO SE APAGA, no se aclara. Una imagen de cámara sobre
+ *     fondo claro se convierte en un barro gris que baja el contraste justo
+ *     donde hace falta. El recuadro de la esquina sigue enseñando la mano.
+ *   · La REJILLA y el ESQUELETO se oscurecen: en blanco sobre claro no
+ *     existen.
+ */
+const PALETA_LIENZO = {
+  interior: {
+    fondo:        [8, 8, 14],
+    fondoCSS:     '#000',
+    fondoVideoCSS:'#08080e',
+    video:        true,
+    core:         'rgba(255,255,255,0.92)',
+    soft:         'rgba(255,255,255,0.10)',
+    anchoCore:    2.5,
+    anchoSoft:    10,
+    rejilla:      [255, 255, 255, 5],
+    rejillaGrosor:0.4,
+    mano:         [60, 80, 100],      // esqueleto en reposo
+    manoActiva:   [160, 185, 210],    // esqueleto dibujando
+    manoGrosor:   1.2,
+    pinza:        [255, 255, 255],
+    yema:         [255, 255, 255, 60],
+    yemaRelleno:  [160, 185, 210, 120]
+  },
+  exterior: {
+    fondo:        [244, 242, 238],
+    fondoCSS:     '#f4f2ee',
+    fondoVideoCSS:'#f4f2ee',
+    video:        false,
+    core:         'rgba(8,8,8,0.95)',
+    soft:         'rgba(0,0,0,0.13)',
+    anchoCore:    5.5,                // el doble largo: 2,5 px al sol no se ve
+    anchoSoft:    16,
+    rejilla:      [0, 0, 0, 34],
+    rejillaGrosor:0.8,
+    mano:         [70, 90, 110],
+    manoActiva:   [12, 40, 70],
+    manoGrosor:   2.4,
+    pinza:        [10, 10, 10],
+    yema:         [20, 20, 20, 110],
+    yemaRelleno:  [12, 40, 70, 170]
+  }
+};
+
+const EXTERIOR_KEY = 'pinchdraw_exterior_v1';
+
+/*
+ * Igual que con el modo: manda lo APLICADO al documento, no lo guardado.
+ * localStorage sólo recuerda la preferencia entre visitas.
+ */
+function exteriorActual(){
+  return document.body.dataset.exterior === 'si' ? 'si' : 'no';
+}
+function exteriorGuardado(){
+  return localStorage.getItem(EXTERIOR_KEY) === 'si' ? 'si' : 'no';
+}
+function esExterior(){ return exteriorActual() === 'si'; }
+function paletaLienzo(){
+  return esExterior() ? PALETA_LIENZO.exterior : PALETA_LIENZO.interior;
+}
+
+/*
+ * Aplicar exterior tiene dos mitades, y la separación no es cosmética.
+ *
+ * La de CSS puede correr en cuanto se evalúa el script. La del lienzo NO:
+ * necesita que p5 exista, y este archivo ya tuvo un fallo por ese orden —
+ * `aplicarModo(modoGuardado())` corre antes de que existan los modelos y la
+ * barra de credenciales salía vacía—. Así que aquí el lienzo se reengancha
+ * sólo si hay sketch; si todavía no lo hay, p.setup() lo aplica al arrancar.
+ */
+let aplicarPaletaLienzo = null;   // la rellena p.setup()
+
+function aplicarExterior(valor){
+  document.body.dataset.exterior = valor;
+  const btn = document.getElementById('btn-exterior');
+  if(btn){
+    btn.textContent = valor === 'si' ? '☀ EXTERIOR' : '☾ INTERIOR';
+    btn.setAttribute('aria-pressed', valor === 'si' ? 'true' : 'false');
+  }
+  // El fondo del <body> lo decide ahora el CSS, pero perfAplicarVideoCSS()
+  // escribe encima con un estilo en línea: hay que volver a pasar por él.
+  if(typeof perfAplicarVideoCSS === 'function') perfAplicarVideoCSS();
+  if(aplicarPaletaLienzo) aplicarPaletaLienzo();
+  if(typeof medirZonas === 'function') medirZonas();
+}
+
+function alternarExterior(){
+  const nuevo = esExterior() ? 'no' : 'si';
+  localStorage.setItem(EXTERIOR_KEY, nuevo);
+  aplicarExterior(nuevo);
+}
+
 new p5(p=>{
-  const CORE='rgba(255,255,255,0.92)',SOFT='rgba(255,255,255,0.10)';
-  const CH=[60,80,100],CHA=[160,185,210];
+  /*
+   * Antes eran constantes. Ahora salen de PALETA_LIENZO y se reasignan al
+   * cambiar de modo: el trazo tiene que poder oscurecerse y engordar.
+   */
+  let PAL=PALETA_LIENZO.interior;
+  let CORE=PAL.core, SOFT=PAL.soft;
+  let ANCHO_CORE=PAL.anchoCore, ANCHO_SOFT=PAL.anchoSoft;
+  let CH=PAL.mano, CHA=PAL.manoActiva;
   let dc=null,vc=null,strokes=[],cur=null,wasD=false,corrT=0;
   let cambio=true,resultadoDeteccionCache=null,ultimaMano=null;
 
@@ -3495,11 +4637,11 @@ new p5(p=>{
 
   function drawSkel(lm,dr){
     const col=dr?CHA:CH,al=dr?180:90;
-    CONNECTIONS.forEach(([a,b])=>{const pa=lm2c(lm[a]),pb=lm2c(lm[b]);p.stroke(col[0],col[1],col[2],al);p.strokeWeight(1.2);p.line(pa.x,pa.y,pb.x,pb.y);});
+    CONNECTIONS.forEach(([a,b])=>{const pa=lm2c(lm[a]),pb=lm2c(lm[b]);p.stroke(col[0],col[1],col[2],al);p.strokeWeight(PAL.manoGrosor);p.line(pa.x,pa.y,pb.x,pb.y);});
     lm.forEach((lk,i)=>{const pos=lm2c(lk),tip=TIPS.includes(i);p.fill(col[0],col[1],col[2],al+40);p.noStroke();p.circle(pos.x,pos.y,tip?9:5);});
   }
 
-  function drawPinch(x,y){p.noFill();p.stroke(255,255,255,180);p.strokeWeight(1.5);p.circle(x,y,24);p.fill(255);p.noStroke();p.circle(x,y,7);}
+  function drawPinch(x,y){const c=PAL.pinza;p.noFill();p.stroke(c[0],c[1],c[2],180);p.strokeWeight(PAL.manoGrosor+0.6);p.circle(x,y,24);p.fill(c[0],c[1],c[2]);p.noStroke();p.circle(x,y,7);}
 
 
   /*
@@ -3659,19 +4801,19 @@ new p5(p=>{
     if(sp.length<2) return;
     const ctx=dc.drawingContext,n=sp.length,p1=sp[n-2],p2=sp[n-1];
     ctx.shadowBlur=0;ctx.lineCap='round';ctx.lineJoin='round';
-    ctx.strokeStyle=SOFT;ctx.lineWidth=10;ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);ctx.stroke();
-    ctx.strokeStyle=CORE;ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);ctx.stroke();
+    ctx.strokeStyle=SOFT;ctx.lineWidth=ANCHO_SOFT;ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);ctx.stroke();
+    ctx.strokeStyle=CORE;ctx.lineWidth=ANCHO_CORE;ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);ctx.stroke();
   }
 
   function redrawAll(incluirCur=false){
     dc.clear();
     const ctx=dc.drawingContext;ctx.shadowBlur=0;
-    strokes.forEach(s=>{if(s.pts.length<2) return;spline(ctx,s.pts,SOFT,10);spline(ctx,s.pts,CORE,2.5);});
+    strokes.forEach(s=>{if(s.pts.length<2) return;spline(ctx,s.pts,SOFT,ANCHO_SOFT);spline(ctx,s.pts,CORE,ANCHO_CORE);});
 
     // Permite redibujar el trazo activo cuando se borra su último punto.
     if(incluirCur&&cur&&cur.sm&&cur.sm.length>=2){
-      spline(ctx,cur.sm,SOFT,10);
-      spline(ctx,cur.sm,CORE,2.5);
+      spline(ctx,cur.sm,SOFT,ANCHO_SOFT);
+      spline(ctx,cur.sm,CORE,ANCHO_CORE);
     }
 
     btnA.disabled=strokes.length===0;
@@ -3782,14 +4924,38 @@ new p5(p=>{
     if(gridG) gridG.remove();
     gridG=p.createGraphics(p.width,p.height);
     gridG.clear();
-    gridG.stroke(255,255,255,5);
-    gridG.strokeWeight(0.4);
+    const r=PAL.rejilla;
+    gridG.stroke(r[0],r[1],r[2],r[3]);
+    gridG.strokeWeight(PAL.rejillaGrosor);
     for(let x=0;x<p.width;x+=55)  gridG.line(x,0,x,p.height);
     for(let y=0;y<p.height;y+=55) gridG.line(0,y,p.width,y);
   }
 
   p.setup=()=>{
     p5app=p;
+    /*
+     * Aquí se conecta el interruptor de exterior con el lienzo. No puede
+     * hacerse antes: `construirGrid()` necesita un canvas, y el buffer del
+     * dibujo también.
+     *
+     * Reconstruir la rejilla no es opcional: se pinta UNA vez en un buffer,
+     * así que cambiar el color de futuras llamadas no la cambiaría.
+     *
+     * Y `redrawAll(true)` es lo que salva el dibujo a medias: los trazos
+     * viven en `strokes` como puntos y `dc` es sólo su render, de modo que
+     * volver a pintarlos con la paleta nueva los conserva y los recolorea.
+     * Sin esto el dibujo se quedaría del color anterior hasta el próximo
+     * trazo, o desaparecería al primer `dc.clear()`.
+     */
+    aplicarPaletaLienzo = () => {
+      PAL = paletaLienzo();
+      CORE = PAL.core; SOFT = PAL.soft;
+      ANCHO_CORE = PAL.anchoCore; ANCHO_SOFT = PAL.anchoSoft;
+      CH = PAL.mano; CHA = PAL.manoActiva;
+      construirGrid();
+      redrawAll(true);
+      marcarCambio();
+    };
     p.createCanvas(p.windowWidth,p.windowHeight);
     dc=p.createGraphics(p.windowWidth,p.windowHeight);dc.clear();
     construirGrid();
@@ -3811,6 +4977,9 @@ new p5(p=>{
       }
     };
 
+    // Ya hay canvas, buffer y rejilla: se aplica la paleta que tocara.
+    aplicarPaletaLienzo();
+
     initMediaPipe();
     iniciarCamara().then(ok=>{
       if(ok) arrancarManosCuandoHayaVideo();
@@ -3826,8 +4995,11 @@ new p5(p=>{
     // canvas debe quedar transparente. Sin él, comportamiento actual.
     if(perf.videoCSS) p.clear();
     else{
-      p.background(8,8,14);
-      if(vc&&vc.elt.readyState>=2){p.push();p.translate(p.width,0);p.scale(-1,1);p.tint(255,75);p.image(vc,0,0,p.width,p.height);p.pop();p.fill(8,8,14,165);p.noStroke();p.rect(0,0,p.width,p.height);}
+      const f=PAL.fondo;
+      p.background(f[0],f[1],f[2]);
+      // En exterior el vídeo NO se pinta: sobre fondo claro se vuelve un
+      // barro gris que baja el contraste justo donde hace falta.
+      if(PAL.video&&vc&&vc.elt.readyState>=2){p.push();p.translate(p.width,0);p.scale(-1,1);p.tint(255,75);p.image(vc,0,0,p.width,p.height);p.pop();p.fill(f[0],f[1],f[2],165);p.noStroke();p.rect(0,0,p.width,p.height);}
     }
     const _t1=(PERF||perfLabActivo)?performance.now():0;
     if(gridG) p.image(gridG,0,0);   // rejilla ya dibujada (ver construirGrid)
@@ -3855,7 +5027,7 @@ new p5(p=>{
       wasD=dr;
       p.noStroke();drawSkel(lm,dr);
       if(pi)drawPinch(px,py);
-      else{const tip=lm2c(lm[INDEX_TIP]);p.noFill();p.stroke(255,255,255,60);p.strokeWeight(1);p.circle(tip.x,tip.y,26);p.fill(160,185,210,120);p.noStroke();p.circle(tip.x,tip.y,7);}
+      else{const tip=lm2c(lm[INDEX_TIP]),y1=PAL.yema,y2=PAL.yemaRelleno;p.noFill();p.stroke(y1[0],y1[1],y1[2],y1[3]);p.strokeWeight(PAL.manoGrosor*0.9);p.circle(tip.x,tip.y,26);p.fill(y2[0],y2[1],y2[2],y2[3]);p.noStroke();p.circle(tip.x,tip.y,7);}
     }else{
       setBadge('SIN MANO','');ultimaMano=null;
       if(wasD)finalize();
@@ -3949,7 +5121,22 @@ function perfRegistrar(t0,t1,t2,t3){
 //   resultado = 0.896194*fondo + 0.103806*vídeo
 // es decir, el vídeo al 10.3806 % sobre #08080e. p5 estira la imagen a pantalla
 // completa (no recorta), de ahí object-fit:fill; scaleX(-1) reproduce el espejo.
+/*
+ * Camino B del fondo: el vídeo lo pinta el compositor detrás del canvas, que
+ * queda transparente. Lo activa SOLA la calidad adaptativa cuando bajan los
+ * FPS, así que si el modo exterior sólo arreglara el camino A funcionaría
+ * hasta que la máquina se pusiera lenta y entonces volvería a negro sin que
+ * nadie tocara nada. Ese es el fallo que aparece en la feria y no en el
+ * escritorio.
+ */
 function perfAplicarVideoCSS(){
+  const pal = (typeof paletaLienzo === 'function') ? paletaLienzo() : PALETA_LIENZO.interior;
+  // En exterior no hay vídeo de fondo por ningún camino.
+  if(perf.videoCSS && !pal.video){
+    document.body.style.background = pal.fondoVideoCSS;
+    if(bgVideoEl) bgVideoEl.style.display='none';
+    return;
+  }
   if(perf.videoCSS){
     if(!bgVideoEl){
       bgVideoEl=document.createElement('video');
@@ -3962,10 +5149,10 @@ function perfAplicarVideoCSS(){
     if(camStream&&bgVideoEl.srcObject!==camStream){
       bgVideoEl.srcObject=camStream;bgVideoEl.play().catch(()=>{});
     }
-    document.body.style.background='#08080e';
+    document.body.style.background=pal.fondoVideoCSS;
     bgVideoEl.style.display='';
   }else{
-    document.body.style.background='#000';
+    document.body.style.background=pal.fondoCSS;
     if(bgVideoEl) bgVideoEl.style.display='none';
   }
 }
@@ -4032,6 +5219,7 @@ function aplicarModo(modo){
   // Lo ya pintado se vuelve a pintar: si se cambia de modo con una ficha
   // abierta, sus datos deben aparecer sin tener que cerrarla y reabrirla.
   if(ultimoGNN) mostrarResultadosGNN(ultimoGNN.props, ultimoGNN.metricas);
+  if(ultimaMolNormativa) pintarNormativa(ultimaMolNormativa);
   if(ultimaFichaMol) pintarFichaTecnica(ultimaFichaMol);
   if(ultimaReaccion) pintarPosibilidadesReaccion(ultimaReaccion);
   // El texto del botón de modo cambia de ancho y con él el alto de #ui en
@@ -4376,7 +5564,11 @@ function pintarTablaTox(tox){
 
   body.innerHTML = filas.map(f => {
     const pct = Math.round(f.prob * 100);
-    const col = f.prob >= 0.6 ? '#ff6b6b' : f.prob >= umbral ? '#ffbe0b' : '#5fa85f';
+    // Misma regla que la barra de arriba: por debajo del umbral no hay señal
+    // que colorear, y doce barritas verdes son doce veces el mismo error.
+    const col = f.prob >= 0.6 ? '#ff6b6b'
+              : f.prob >= umbral ? '#ffbe0b'
+              : 'var(--p-barra-neutra)';
     return `<tr class="${f.prob >= umbral ? 'sobre' : ''}">`
       + `<td>${textoGuiaSeguro(f.ensayo)}</td>`
       + `<td class="barra"><div class="tox-mini"><i style="width:${pct}%;background:${col}"></i></div></td>`
@@ -4421,6 +5613,13 @@ document.getElementById('smiles-input').addEventListener('keydown', ev => {
   if(ev.key === 'Enter') analizarSmilesManual();
 });
 aplicarModo(modoGuardado());
+/*
+ * Exterior se aplica aquí, al evaluar el script, pero SÓLO la mitad de CSS:
+ * `aplicarPaletaLienzo` todavía es null porque p5 no ha llamado a setup(), y
+ * la función lo comprueba. El lienzo se pone al día solo cuando p5 arranca.
+ */
+aplicarExterior(exteriorGuardado());
+document.getElementById('btn-exterior').addEventListener('click', alternarExterior);
 
 // ════════════════════════════════════════════════════
 //  PANEL GUÍA — CÓMO DIBUJAR + REACCIONES
@@ -4922,12 +6121,16 @@ async function fetchSDF3d(smiles){
     `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/smiles/${enc}/SDF?record_type=3d`,
     `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/smiles/${enc}/SDF`,
   ];
+  /*
+   * Dos URLs, así que el plazo se reparte: si la primera agota los 10 s
+   * enteros, la segunda ya no tiene sentido intentarla y esto tardaría 20.
+   */
   for(const url of urls){
     try{
-      const r = await fetch(url);
+      const r = await fetchConTimeout(url, {}, PUBCHEM_TIMEOUT_MS / 2);
       redOk();
       if(r.ok){ const t = await r.text(); if(t && t.trim().length > 10) return t; }
-    }catch(e){ redFallo(e); }
+    }catch(e){ if(!esTiempoAgotado(e)) redFallo(e); }
   }
   return null;
 }
