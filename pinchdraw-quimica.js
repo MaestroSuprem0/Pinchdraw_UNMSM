@@ -289,6 +289,24 @@
         for (let i = 0; i < N; i++) vistos[SIMBOLO_POR_Z[z[i]] || 'X'] = 1;
         return Object.keys(vistos).sort();
       })(),
+      // Descriptores fisicoquímicos de molécula (Etapa 2B), EN CRUDO.
+      //
+      // Las claves de get_descriptors() no son las del modelo: cuál va con
+      // cuál está en proyecto/datasets_gnn.json, y la elección delicada es
+      // donadores/aceptores, donde RDKit tiene dos definiciones. Aquí se usa
+      // la de LIPINSKI (lipinskiHBD/lipinskiHBA), que es la que coincide con
+      // Python en las 256 del catálogo; NumHBA difiere en 13.
+      //
+      // Se calculan siempre, los use el modelo o no: son gratis (ya está el
+      // desc de arriba) y así el grafo no depende de qué modelo lo mire.
+      descriptores: {
+        peso_molecular:   desc.amw,
+        tpsa:             desc.tpsa,
+        logp:             desc.CrippenClogP,
+        donadores_h:      desc.lipinskiHBD,
+        aceptores_h:      desc.lipinskiHBA,
+        enlaces_rotables: desc.NumRotatableBonds
+      },
       numEnlaces: enlaces.length,
       numAnillos: (ext.atomRings || []).length,
       tieneAromaticos: aromAtomos.size > 0,
@@ -348,7 +366,7 @@
   //  5. LA GNN EN JAVASCRIPT
   //     Arquitectura idéntica a ModeloGNN de predictor_gnn.py:
   //       3 × [ A_norm·H·W → LayerNorm → ReLU ]
-  //       → mean pooling → fc1 + ReLU → fc2 (logits)
+  //       → mean pooling → [+ descriptores normalizados] → fc1 + ReLU → fc2
   //     Dropout se omite: en inferencia es la identidad.
   // ══════════════════════════════════════════════════════════════════
 
@@ -437,6 +455,40 @@
       this.p[pref + '.ln.bias'], N, dOut));
   };
 
+  /**
+   * Pega los descriptores normalizados al vector de la molécula.
+   *
+   * Si el modelo no usa descriptores devuelve el vector tal cual, que es el
+   * caso de esol y tox21.
+   */
+  Modelo.prototype.vectorConDescriptores = function (mol, grafo, dSalida3) {
+    const cfg = (this.config || {}).descriptores;
+    if (!cfg || !cfg.nombres || cfg.nombres.length === 0) return mol;
+
+    const nombres = cfg.nombres;
+    // El ancho que espera fc1 es la prueba de que los dos lados cuentan lo
+    // mismo. Si no cuadra, se para: seguir daría un número creíble y falso.
+    const esperado = dSalida3 + nombres.length;
+    const anchoFc1 = this.formas['fc1.weight'][1];
+    if (anchoFc1 !== esperado) {
+      throw new Error('fc1 espera ' + anchoFc1 + ' columnas y el config '
+        + 'describe ' + esperado + ' (' + dSalida3 + ' + ' + nombres.length
+        + ' descriptores)');
+    }
+
+    const salida = new Float32Array(esperado);
+    salida.set(mol, 0);
+    for (let k = 0; k < nombres.length; k++) {
+      const crudo = grafo.descriptores[nombres[k]];
+      if (typeof crudo !== 'number' || !isFinite(crudo)) {
+        throw new Error('falta el descriptor ' + nombres[k] + ' en el grafo');
+      }
+      const std = cfg.std[k] || 1;
+      salida[dSalida3 + k] = (crudo - cfg.media[k]) / std;
+    }
+    return salida;
+  };
+
   /** Devuelve los logits crudos, igual que el forward de PyTorch. */
   Modelo.prototype.forward = function (grafo) {
     const N = grafo.N;
@@ -455,8 +507,18 @@
     }
     for (let k = 0; k < dSalida3; k++) mol[k] /= N;
 
-    const o1 = reluEnSitio(lineal(mol, this.p['fc1.weight'],
-      this.p['fc1.bias'], 1, dSalida3, 32));
+    // ── Descriptores de molécula (Etapa 2B) ───────────────────────
+    // No son de átomo: no entran en las 37. Se pegan aquí, después del
+    // pooling, así que lo único que cambia es el ancho de la entrada de fc1.
+    //
+    // La media y la desviación son las del TRAIN y viajan en el config. Si
+    // JS normalizara con otras —o no normalizara—, el navegador calcularía un
+    // vector distinto del que se entrenó: nada daría error y las predicciones
+    // saldrían plausibles y equivocadas.
+    const entradaFc1 = this.vectorConDescriptores(mol, grafo, dSalida3);
+
+    const o1 = reluEnSitio(lineal(entradaFc1, this.p['fc1.weight'],
+      this.p['fc1.bias'], 1, entradaFc1.length, 32));
     const o2 = lineal(o1, this.p['fc2.weight'], this.p['fc2.bias'], 1, 32, nTareas);
 
     return Array.prototype.slice.call(o2);

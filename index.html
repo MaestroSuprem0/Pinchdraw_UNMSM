@@ -17,7 +17,7 @@
        así la app no depende de que unpkg esté disponible, y el .wasm queda
        cacheado en el navegador tras la primera visita. -->
   <script src="RDKit_minimal.js"></script>
-  <script src="pinchdraw-quimica.js?v=29acd7f311"></script>
+  <script src="pinchdraw-quimica.js?v=b027ab2bc4"></script>
   <script>
     // Si el módulo de química no llegó a cargarse, se avisa en pantalla en
     // vez de dejar que la página reviente con un error críptico.
@@ -47,7 +47,7 @@
         // Lo reescribe refrescar_versiones.py con el hash de los tres
         // .json de modelos. Sin esto, un reentrenamiento no le llega a
         // quien ya visito la pagina: se queda con el modelo cacheado.
-        versionModelos: '9fd051cc48',
+        versionModelos: 'f9a76f528e',
         progreso: function (mensaje, fraccion) {
           if (texto) texto.textContent = mensaje;
           if (barra) barra.style.width = Math.round(fraccion * 100) + '%';
